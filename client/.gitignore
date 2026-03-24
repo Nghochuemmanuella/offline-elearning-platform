@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+.DS_Store
+*.local
+# We will add Ollama models here later so they don't bloat GitHub
+models/

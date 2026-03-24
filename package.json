@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "pouchdb": "^9.0.0",
+    "pouchdb-find": "^9.0.0",
+    "vite-plugin-pwa": "^1.2.0"
+  }
+}
