@@ -7,12 +7,17 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      // This helps the app stay available offline
+      devOptions: {
+    enabled: true
+      },
       manifest: {
-        name: 'Offline E-Learning Portal',
-        short_name: 'EduOffline',
-        description: 'Learning management system for low-bandwidth areas.',
-        theme_color: '#ffffff',
+        name: 'EduBridge Offline',
+        short_name: 'EduBridge',
+        description: 'Offline-first E-Learning Platform',
+        theme_color: '#2196F3',
+        background_color: '#ffffff',
+        display: 'standalone',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -25,12 +30,6 @@ export default defineConfig({
             type: 'image/png'
           }
         ]
-      },
-      workbox: {
-        // This caches all your JS, CSS, and HTML automatically
-        globPatterns: ['**/*.{js,css,html,png,svg}'],
-        // Increase the limit for offline caching (important for lessons/images)
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 
       }
     })
   ]

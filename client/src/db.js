@@ -1,4 +1,4 @@
-import PouchDB from 'pouchdb';
+import PouchDB from 'pouchdb/dist/pouchdb.js';
 
 // Create a local database named 'elearning_db'
 const localDB = new PouchDB('elearning_db');
