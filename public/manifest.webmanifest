@@ -1,0 +1,9 @@
+{
+  "short_name": "EduBridge",
+  "name": "EduBridge: Offline Learning",
+  "icons": [],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#00ff2f"
+}
