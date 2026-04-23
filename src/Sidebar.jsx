@@ -45,7 +45,7 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout }) => {
         </div>
       </div>
 
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, overFlowY: 'auto'}}>
         {menuItems.map((item) => (
           <div 
             key={item.id} 
@@ -61,7 +61,8 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout }) => {
       </div>
 
       {/* RESTORED USER INFO SECTION */}
-      <div style={{ padding: '20px 25px', backgroundColor: '#080808', borderTop: '1px solid #1a1a1a' }}>
+      <div style={{ padding: '20px 25px', 
+       paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',   backgroundColor: '#080808', borderTop: '1px solid #1a1a1a', marginTop: 'auto' }}>
         <div style={{ fontSize: '0.7rem', color: '#666', marginBottom: '10px' }}>
           SYSTEM USER: <br/>
           <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 'bold' }}>{user?.name || 'Unknown User'}</span>
