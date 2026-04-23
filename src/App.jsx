@@ -7,14 +7,7 @@ import LecturerDashboard from './LecturerDashboard';
 import Profile from './Profile';
 import AITutor from './AITutor';
 
-const COURSE_CONTENT = [
-  { id: 1, title: "Advanced Software Architecture", code: "CENP4105", credits: 4, type: "Core" },
-  { id: 2, title: "Database Management Systems", code: "CENP3102", credits: 3, type: "Core" },
-  { id: 3, title: "Distributed Systems & Cloud", code: "CENP4107", credits: 4, type: "Elective" },
-  { id: 4, title: "Human Computer Interaction", code: "SWE3105", credits: 2, type: "Core" },
-  { id: 5, title: "Mobile Application Development", code: "SWE4109", credits: 3, type: "Practical" },
-  { id: 6, title: "Client Server Development", code: "SWE4110", credits: 3, type: "Practical" }
-];
+const COURSE_CONTENT = []
 
 const LESSON_MATERIALS = {
   1: "Focus on Offline-First Design: Learn about Service Workers and PouchDB synchronization patterns.",
@@ -26,306 +19,219 @@ const LESSON_MATERIALS = {
 };
 
 function App() {
-  const [user, setUser] = useState(null); 
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [completedLessons, setCompletedLessons] = useState([]);
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('edubridge_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [view, setView] = useState('student');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState(""); 
+  const [completedLessons, setCompletedLessons] = useState([]);
   const [dynamicLessons, setDynamicLessons] = useState([]);
-  const [selectedCourse, setSelectedCourse] = useState(null); 
-  const [view, setView] = useState('student'); 
-  const [syncMessage, setSyncMessage] = useState("");
-
-  // Screen size state for responsive tweaks
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   const isLecturer = user?.name?.toLowerCase().includes('admin') || user?.email?.includes('lecturer');
-
-  const showToast = (msg) => {
-    setSyncMessage(msg);
-    setTimeout(() => setSyncMessage(""), 4000); 
-  };
+  const [selectedLevel, setSelectedLevel] = useState(user?.level || null);
 
   const fetchAllCourses = useCallback(async (currentUserId) => {
     try {
       const result = await localDB.allDocs({ include_docs: true, attachments: true });
-      const fetchedLessons = result.rows
+      const fetched = result.rows
         .filter(row => row.doc.type === 'lesson')
-        .map(row => ({
-           id: row.doc._id,
-           title: row.doc.title,
-           code: row.doc.code || "EXT-001",
-           credits: row.doc.credits || 0,
-           content: row.doc.content,
-           _attachments: row.doc._attachments,
-           _id: row.doc._id,
-           type: "Offline Content"
-        }));
-      setDynamicLessons(fetchedLessons);
-
+        .map(row => ({ ...row.doc, id: row.doc._id }));
+      setDynamicLessons(fetched);
       if (currentUserId) {
-        const progressIds = result.rows
-          .filter(row => row.id.startsWith(`progress_${currentUserId}_`)) 
+        const progress = result.rows
+          .filter(row => row.id.startsWith(`progress_${currentUserId}_`))
           .map(row => row.doc.lessonId);
-        setCompletedLessons(progressIds);
+        setCompletedLessons(progress);
       }
-    } catch (err) {
-      console.log("Error loading database content", err);
-    }
+    } catch (err) { console.log(err); }
   }, []);
 
   useEffect(() => {
-    const goOnline = () => setIsOnline(true);
-    const goOffline = () => setIsOnline(false);
-    window.addEventListener('online', goOnline);
-    window.addEventListener('offline', goOffline);
+    if (isLecturer) setView('lecturer');
+    fetchAllCourses(user?.id);
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [user, isLecturer, fetchAllCourses]);
 
-    const initApp = async () => {
-      const savedUser = await getLocalUser();
-      if (savedUser) {
-        setUser(savedUser);
-        fetchAllCourses(savedUser.id);
-      }
-    };
+  // --- NETWORK STATUS LISTENER ---
+useEffect(() => {
+  const handleStatusChange = () => {
+    setIsOnline(navigator.onLine);
+  };
 
-    initApp();
+  window.addEventListener('online', handleStatusChange);
+  window.addEventListener('offline', handleStatusChange);
 
-    const syncHandler = startSync();
-    syncHandler.on('paused', (info) => {
-      if (info && (info.push?.docs_read > 0 || info.pull?.docs_read > 0)) {
-        showToast("🔄 DATA SYNCED: Remote & Local nodes merged.");
-      }
-    });
-
-    const dbListener = localDB.changes({
-      since: 'now',
-      live: true,
-      include_docs: true
-    }).on('change', () => {
-      fetchAllCourses(user?.id); 
-    });
-
-    return () => {
-      window.removeEventListener('online', goOnline);
-      window.removeEventListener('offline', goOffline);
-      syncHandler.cancel();
-      dbListener.cancel();
-    };
-  }, [fetchAllCourses, user?.id]);
+  // Clean up on unmount
+  return () => {
+    window.removeEventListener('online', handleStatusChange);
+    window.removeEventListener('offline', handleStatusChange);
+  };
+}, []);
 
   const handleLogin = (userData) => {
-    const userObj = typeof userData === 'string' ? { name: userData, id: userData.replace(/\s+/g, '_').toLowerCase() } : userData;
+    const userObj = typeof userData === 'string' 
+      ? { name: userData, id: userData.replace(/\s+/g, '_').toLowerCase() } 
+      : userData;
     setUser(userObj);
-    const isAdmin = userObj.name?.toLowerCase().includes('admin') || userObj.email?.includes('lecturer');
+    localStorage.setItem('edubridge_user', JSON.stringify(userObj));
+    setSelectedLevel(userObj.level || null);
+    const isAdmin = userObj.name?.toLowerCase().includes('admin');
     setView(isAdmin ? 'lecturer' : 'student');
-    fetchAllCourses(userObj.id);
   };
+   
+
+  const saveLevel = (level) => {
+  const updatedUser = { ...user, level: level };
+  setUser(updatedUser);
+  localStorage.setItem('edubridge_user', JSON.stringify(updatedUser));
+  setSelectedLevel(level);
   
+  // Optional: Re-fetch courses specifically for this level
+  if (typeof fetchAllCourses === 'function') {
+    fetchAllCourses(user.id);
+  }
+};
+  const handleLogout = () => {
+    if (window.confirm("Exit EduBridge?")) {
+      localStorage.removeItem('edubridge_user');
+      window.location.reload();
+    }
+  };
+
   const handleComplete = async (id) => {
     if (!user) return;
     await saveProgress(id, 'complete', user.id);
+    setCompletedLessons(prev => [...prev, id]); // Instant UI update
+    setSelectedCourse(null);
   };
 
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const allCourses = [...COURSE_CONTENT, ...dynamicLessons];
+  const filtered = allCourses.filter(course => {
+  const matchesSearch = course.title.toLowerCase().includes(searchTerm.toLowerCase());
   
-  const allAvailableCourses = [...COURSE_CONTENT, ...dynamicLessons];
-  const filteredCourses = allAvailableCourses.filter(course => 
-    course.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    course.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // If user is a student, only show courses for their level
+  // Note: Standard courses like COURSE_CONTENT might need a 'level' property added later
+  const matchesLevel = isLecturer ? true : (course.level === selectedLevel);
   
-  const uniqueCompletions = [...new Set(completedLessons)].length;
-  const completionPercentage = allAvailableCourses.length > 0 
-    ? Math.min(Math.round((uniqueCompletions / allAvailableCourses.length) * 100), 100) 
-    : 0;
+  return matchesSearch && matchesLevel;
+});
+  const completionPercent = allCourses.length > 0 ? Math.round((completedLessons.length / allCourses.length) * 100) : 0;
 
   if (!user) return <Auth onLogin={handleLogin} />;
-
+  // If logged in as student but no level is selected yet
+if (user && !isLecturer && !selectedLevel) {
   return (
-    <div style={{ margin: 0, padding: 0, backgroundColor: '#fff', minHeight: '100vh', fontFamily: 'monospace', overflowX: 'hidden' }}>
-      
-      {/* Sidebar - Now handles mobile overlay automatically */}
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        toggleSidebar={toggleSidebar} 
-        user={user} 
-        onNavigate={(target) => { setView(target); if(isMobile) setIsSidebarOpen(false); }} 
-        onLogout={() => { localStorage.clear(); window.location.reload(); }}
-      />
+    <div style={{ 
+      height: '100vh', display: 'flex', flexDirection: 'column', 
+      alignItems: 'center', justifyContent: 'center', backgroundColor: '#000', color: '#00ff2f' 
+    }}>
+      <h2 style={{ marginBottom: '30px', fontWeight: '900', textAlign: 'center' }}>
+        SELECT YOUR ACADEMIC LEVEL
+      </h2>
+      <div style={{ display: 'flex', gap: '20px', flexDirection: 'column', width: '250px' }}>
+        {['200', '300', '400'].map(lvl => (
+          <button 
+            key={lvl}
+            onClick={() => saveLevel(lvl)}
+            style={{ 
+              padding: '20px', background: '#00ff2f', color: '#000', 
+              border: 'none', fontWeight: '900', cursor: 'pointer',
+              fontSize: '1.2rem', boxShadow: '6px 6px 0px #333'
+            }}
+          >
+            LEVEL {lvl}
+          </button>
+        ))}
+      </div>
+      <p style={{ marginTop: '20px', fontSize: '0.8rem', opacity: 0.7 }}>
+        This helps EduBridge provision the right offline modules for you.
+      </p>
+    </div>
+  );
+}
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f9f9f9', fontFamily: 'monospace' }}>
+      <Sidebar isOpen={isSidebarOpen} user={user} onNavigate={setView} onLogout={handleLogout} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
 
-      {/* Main Content Area - Responsive Margin */}
-      <div style={{ 
-        marginLeft: isSidebarOpen && !isMobile ? '280px' : '0', 
-        transition: '0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-        minHeight: '100vh',
-        width: '100%'
-      }}>
-        
-        {/* Navigation Bar */}
-        <nav style={{ 
-          background: '#000', color: '#00ff2f', padding: '15px', 
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          position: 'sticky', top: 0, zIndex: 100, borderBottom: '2px solid #00ff2f'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <button onClick={toggleSidebar} style={{ background: 'none', border: 'none', color: '#00ff2f', fontSize: '24px', cursor: 'pointer', marginRight: '15px' }}>☰</button>
-            <h2 style={{ margin: 0, letterSpacing: '1px', fontWeight: '900', fontSize: isMobile ? '1.2rem' : '1.5rem' }}>EDUBRIDGE</h2>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={{ 
-              padding: '4px 8px', border: `1px solid ${isOnline ? '#00ff2f' : '#ff4444'}`, 
-              borderRadius: '4px', fontSize: '0.6rem', color: isOnline ? '#00ff2f' : '#ff4444',
-              fontWeight: 'bold'
-            }}>
-              {isOnline ? 'ONLINE' : 'OFFLINE'}
-            </div>
-          </div>
+      <div style={{ flex: 1, marginLeft: isSidebarOpen && !isMobile ? '280px' : '0', transition: '0.3s' }}>
+        <nav style={{ background: '#000', color: '#00ff2f', padding: '15px', display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #00ff2f', position: 'sticky', top: 0, zIndex: 100 }}>
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{ background: 'none', border: 'none', color: '#00ff2f', fontSize: '20px', cursor: 'pointer' }}>☰</button>
+          <span style={{ fontWeight: '900' }}>EDUBRIDGE</span>
+          <span style={{ fontSize: '0.7rem', border: '1px solid #00ff2f', padding: '2px 5px', border: isOnline ? '1px solid #00ff2f' : '1px solid #ff4444', 
+  backgroundColor: isOnline ? 'transparent' : '#ff4444',
+  color: isOnline ? '#00ff2f' : '#fff'}}>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
         </nav>
 
-        {(() => {
-          if (view === 'lecturer') return <LecturerDashboard isMobile={isMobile} />;
-          if (view === 'profile') return <Profile user={user} isLecturer={isLecturer} allCourses={allAvailableCourses} completedLessons={completedLessons} />;
-          if (view === 'ai') return <div style={{ padding: isMobile ? '15px' : '30px' }}><AITutor /></div>;
-          return (
-            <main style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f9f9f9', minHeight: '90vh' }}>
-              
-              {/* Progress Bar Container */}
-              <div style={{ backgroundColor: '#000', padding: '15px', border: '4px solid #000', boxShadow: '6px 6px 0px #00ff2f', marginBottom: '30px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#00ff2f', marginBottom: '8px', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                  <span>STUDENT PROGRESS</span>
-                  <span>{completionPercentage}%</span>
-                </div>
-                <div style={{ width: '100%', height: '8px', backgroundColor: '#333' }}>
-                  <div style={{ width: `${completionPercentage}%`, height: '100%', backgroundColor: '#00ff2f', transition: 'width 0.5s' }}></div>
-                </div>
+        {view === 'lecturer' ? (
+          <LecturerDashboard isMobile={isMobile} />
+        ) : view === 'ai' ? (
+          <div style={{ padding: '20px' }}><AITutor /></div>
+        ) : (
+          <main style={{ padding: '20px' }}>
+            <div style={{ marginBottom: '30px', background: '#000', color: '#fff', padding: '20px', boxShadow: '8px 8px 0px #00ff2f' }}>
+              <h1 style={{ margin: 0, color: '#00ff2f' }}>Welcome, {user?.name}!</h1>
+              <p style={{ margin: '5px 0 15px 0', opacity: 0.8 }}>Software Engineering Final Year Portal</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '5px' }}>
+                <span>COURSE PROGRESS</span>
+                <span>{completionPercent}%</span>
               </div>
-
-              {/* Title and Search Section */}
-              <div style={{ 
-                display: 'flex', 
-                flexDirection: isMobile ? 'column' : 'row', 
-                justifyContent: 'space-between', 
-                alignItems: isMobile ? 'flex-start' : 'center', 
-                marginBottom: '25px',
-                gap: '15px'
-              }}>
-                <h1 style={{ color: '#000', margin: '0', fontSize: isMobile ? '1.8rem' : '2.5rem', fontWeight: '900' }}>COURSES</h1>
-                <input 
-                  type="text" 
-                  placeholder="SEARCH..." 
-                  value={searchTerm} 
-                  onChange={(e) => setSearchTerm(e.target.value)} 
-                  style={{ 
-                    padding: '12px', 
-                    width: isMobile ? '100%' : '250px', 
-                    backgroundColor: '#000', 
-                    color: '#00ff2f', 
-                    border: 'none',
-                    boxSizing: 'border-box'
-                  }} 
-                />
+              <div style={{ width: '100%', height: '10px', background: '#333' }}>
+                <div style={{ width: `${completionPercent}%`, height: '100%', background: '#00ff2f' }} />
               </div>
+            </div>
 
-              {/* Responsive Course Grid */}
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', 
-                gap: '20px' 
-              }}>
-                {filteredCourses.map((course) => {
-                  const isDone = completedLessons.includes(course.id);
-                  return (
-                    <div key={course.id} style={{ backgroundColor: '#fff', border: '3px solid #000', padding: '20px', boxShadow: isDone ? '5px 5px 0px #00ff2f' : '5px 5px 0px #000' }}>
-                      <div style={{ fontSize: '0.7rem', color: '#888', marginBottom: '5px' }}>{course.code}</div>
-                      <h3 style={{ margin: '0 0 15px 0', fontSize: '1.1rem' }}>{course.title}</h3>
-                      <button onClick={() => setSelectedCourse(course)} style={{ backgroundColor: isDone ? '#000' : '#00ff2f', color: isDone ? '#00ff2f' : '#000', fontWeight: '900', padding: '12px', width: '100%', border: '2px solid #000', cursor: 'pointer' }}>
-                        {isDone ? 'RE-VISIT' : 'START NOW'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>   
-            </main>
-          );
-        })()}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0 }}>MODULES</h2>
+              <input type="text" placeholder="SEARCH..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ padding: '10px', background: '#000', color: '#00ff2f', border: 'none' }} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+              {filtered.map(course => {
+                const isDone = completedLessons.includes(course.id);
+                return (
+                  <div key={course.id} style={{ background: '#fff', border: '3px solid #000', padding: '20px', boxShadow: isDone ? '6px 6px 0px #00ff2f' : '6px 6px 0px #000' }}>
+                    <small style={{ color: '#888' }}>{course.code}</small>
+                    <h3 style={{ margin: '10px 0' }}>{course.title}</h3>
+                    <button onClick={() => setSelectedCourse(course)} style={{ width: '100%', padding: '12px', background: isDone ? '#000' : '#00ff2f', color: isDone ? '#00ff2f' : '#000', border: '2px solid #000', fontWeight: 'bold', cursor: 'pointer' }}>
+                      {isDone ? 'RE-VISIT' : 'START NOW'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </main>
+        )}
       </div>
 
-      {/* Sync Toast Notification */}
-      {syncMessage && (
-        <div style={{
-          position: 'fixed', bottom: '20px', right: '20px', left: isMobile ? '20px' : 'auto', 
-          backgroundColor: '#000', color: '#00ff2f',
-          padding: '12px 20px', border: '3px solid #00ff2f', fontWeight: '900', zIndex: 9999,
-          boxShadow: '5px 5px 0px #000', fontSize: '0.8rem'
-        }}>
-          {syncMessage}
-        </div>
-      )}
-
-      {/* Responsive Lesson Modal */}
       {selectedCourse && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 2000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: isMobile ? '10px' : '0' }}>
-          <div style={{ 
-            backgroundColor: '#fff', padding: isMobile ? '25px' : '40px', 
-            width: '100%', maxWidth: '600px', border: '4px solid #000', 
-            boxShadow: '10px 10px 0px #00ff2f', boxSizing: 'border-box' 
-          }}>
-            <h2 style={{ textTransform: 'uppercase', fontWeight: '900', fontSize: isMobile ? '1.2rem' : '1.5rem', marginBottom: '15px' }}>{selectedCourse.title}</h2>
-            
-            <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid #eee', padding: '10px' }}>
-              <p style={{ whiteSpace: 'pre-wrap', fontSize: isMobile ? '0.9rem' : '1rem' }}>
-                {selectedCourse.content || LESSON_MATERIALS[selectedCourse.id] || "No materials found."}
-              </p>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 }}>
+          <div style={{ background: '#fff', padding: '30px', maxWidth: '600px', width: '90%', border: '4px solid #000', boxShadow: '10px 10px 0px #00ff2f' }}>
+            <h2 style={{ margin: '0 0 20px 0', borderBottom: '2px solid #000' }}>{selectedCourse.title}</h2>
+            <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '20px', padding: '10px', background: '#f4f4f4' }}>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{selectedCourse.content || LESSON_MATERIALS[selectedCourse.id] || "No offline content."}</p>
             </div>
 
             {selectedCourse._attachments && (
-              <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#f0f0f0', border: '1px dashed #000' }}>
-                <div style={{ marginBottom: '8px', fontSize: '0.75rem', fontWeight: 'bold' }}>📎 DOWNLOADS:</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {Object.keys(selectedCourse._attachments).map((fileName) => (
-                    <button
-                      key={fileName}
-                      onClick={async () => {
-                        try {
-                          const blob = await localDB.getAttachment(selectedCourse._id, fileName);
-                          const url = URL.createObjectURL(blob);
-                          window.open(url, '_blank');
-                        } catch (err) {
-                          alert("Error: " + err.message);
-                        }
-                      }}
-                      style={{
-                        backgroundColor: '#000', color: '#fff', border: 'none', padding: '6px 12px',
-                        fontSize: '0.65rem', cursor: 'pointer', fontWeight: 'bold'
-                      }}
-                    >
-                      {fileName.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-              </div>
+               <div style={{ marginBottom: '20px' }}>
+                 <p style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>📎 ATTACHMENTS:</p>
+                 {Object.keys(selectedCourse._attachments).map(name => (
+                   <button key={name} onClick={async () => {
+                     const blob = await localDB.getAttachment(selectedCourse._id, name);
+                     window.open(URL.createObjectURL(blob));
+                   }} style={{ background: '#000', color: '#fff', fontSize: '0.6rem', padding: '5px', marginRight: '5px', cursor: 'pointer' }}>{name.toUpperCase()}</button>
+                 ))}
+               </div>
             )}
 
-            <div style={{ marginTop: '25px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px' }}>
-              <button 
-                onClick={() => { handleComplete(selectedCourse.id); setSelectedCourse(null); }} 
-                style={{ backgroundColor: '#000', color: '#00ff2f', padding: '12px', border: 'none', fontWeight: 'bold', cursor: 'pointer', flex: 1 }}
-              >
-                COMPLETE
-              </button>
-              <button 
-                onClick={() => setSelectedCourse(null)} 
-                style={{ padding: '12px', cursor: 'pointer', background: 'none', border: '1px solid #ccc', fontWeight: 'bold', flex: 1 }}
-              >
-                CLOSE
-              </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => handleComplete(selectedCourse.id)} style={{ flex: 1, padding: '15px', background: '#000', color: '#00ff2f', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>COMPLETE MODULE</button>
+              <button onClick={() => setSelectedCourse(null)} style={{ flex: 1, padding: '15px', background: '#fff', border: '1px solid #000', fontWeight: 'bold', cursor: 'pointer' }}>CLOSE</button>
             </div>
           </div>
         </div>

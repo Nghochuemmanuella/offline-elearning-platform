@@ -10,6 +10,7 @@ const LecturerDashboard = ({ isMobile }) => {
   const [editingId, setEditingId] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [studentStats, setStudentStats] = useState([]);
+  const [level, setLevel] = useState('400'); // Default to level 400
 
   const fetchDashboardData = async () => {
     try {
@@ -51,45 +52,46 @@ const LecturerDashboard = ({ isMobile }) => {
     return () => listener.cancel();
   }, []);
 
-  const handleSaveCourse = async (e) => {
-    e.preventDefault();
-    try {
-      let attachmentObj = null;
-      if (selectedFile) {
-        attachmentObj = {
-          [selectedFile.name]: { content_type: selectedFile.type, data: selectedFile }
-        };
-      }
-
-      if (editingId) {
-        const existingDoc = await localDB.get(editingId);
-        await localDB.put({
-          ...existingDoc,
-          title, code, content,
-          credits: parseInt(credits) || 0,
-          updatedAt: new Date().toISOString(),
-          _attachments: attachmentObj || existingDoc._attachments
-        });
-        alert("✅ Module Updated!");
-      } else {
-        await localDB.put({
-          _id: `lesson_${Date.now()}`,
-          type: 'lesson',
-          title, code, content,
-          credits: parseInt(credits) || 0,
-          createdAt: new Date().toISOString(),
-          _attachments: attachmentObj
-        });
-        alert("✅ Module Published!");
-      }
-
-      setEditingId(null);
-      setSelectedFile(null);
-      setTitle(''); setCode(''); setCredits(''); setContent('');
-    } catch (err) {
-      alert("❌ Error: " + err.message);
+     const handleSaveCourse = async (e) => {
+  e.preventDefault();
+  try {
+    let attachmentObj = null;
+    if (selectedFile) {
+      attachmentObj = {
+        [selectedFile.name]: { content_type: selectedFile.type, data: selectedFile }
+      };
     }
-  };
+
+    if (editingId) {
+      const existingDoc = await localDB.get(editingId);
+      await localDB.put({
+        ...existingDoc,
+        title, code, content, level, // <--- ADDED LEVEL HERE
+        credits: parseInt(credits) || 0,
+        updatedAt: new Date().toISOString(),
+        _attachments: attachmentObj || existingDoc._attachments
+      });
+      alert("✅ Module Updated!");
+    } else {
+      await localDB.put({
+        _id: `lesson_${Date.now()}`,
+        type: 'lesson',
+        title, code, content, level, // <--- ADDED LEVEL HERE
+        credits: parseInt(credits) || 0,
+        createdAt: new Date().toISOString(),
+        _attachments: attachmentObj
+      });
+      alert("✅ Module Published!");
+    }
+
+    // Reset level along with other fields
+    setEditingId(null);
+    setSelectedFile(null);
+    setTitle(''); setCode(''); setCredits(''); setContent(''); setLevel('400'); 
+  } catch (err) {
+    alert("❌ Error: " + err.message);
+  }
+};
 
   return (
     // FORCED WHITE BACKGROUND WRAPPER
@@ -136,6 +138,19 @@ const LecturerDashboard = ({ isMobile }) => {
             <input placeholder="CODE" value={code} onChange={(e) => setCode(e.target.value)} required style={inputStyle} />
             <input type="number" placeholder="CREDITS" value={credits} onChange={(e) => setCredits(e.target.value)} required style={inputStyle} />
           </div>
+          {/* --- LEVEL SELECTOR ADDED HERE --- */}
+         <div style={{ marginBottom: '15px' }}>
+         <label style={{ color: '#fff', fontSize: '0.7rem', display: 'block', marginBottom: '5px' }}>TARGET STUDENT LEVEL:</label>
+         <select 
+         value={level} 
+         onChange={(e) => setLevel(e.target.value)} 
+         style={{ ...inputStyle, cursor: 'pointer' }}
+        >
+        <option value="200">Level 200</option>
+        <option value="300">Level 300</option>
+        <option value="400">Level 400</option>
+        </select>
+        </div>
           <div style={{ marginBottom: '15px' }}>
             <label style={{ color: '#fff', fontSize: '0.7rem', display: 'block', marginBottom: '5px' }}>ATTACH RESOURCE (PDF/IMG):</label>
             <input type="file" onChange={(e) => setSelectedFile(e.target.files[0])} style={inputStyle} />
