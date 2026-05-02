@@ -18,6 +18,7 @@ export const startSync = () => {
   })
   .on('change', (info) => {
     console.log("🔄 DATA UPDATE: New modules or progress received!", info);
+    resolveConflicts();
   })
   .on('paused', (err) => {
     if (err) {
@@ -80,6 +81,49 @@ export const getLocalUser = async () => {
 };
 
 export default localDB;
+// ── AUTOMATIC CONFLICT RESOLUTION ENGINE ──
+export const resolveConflicts = async () => {
+  try {
+    const result = await localDB.allDocs({ include_docs: true, conflicts: true });
+    
+    const conflictedDocs = result.rows.filter(row => 
+      row.doc._conflicts && row.doc._conflicts.length > 0
+    );
+
+    if (conflictedDocs.length === 0) return;
+
+    console.log(`⚔️ EduBridge: Found ${conflictedDocs.length} conflict(s). Resolving...`);
+
+    for (const row of conflictedDocs) {
+      const doc = row.doc;
+      const conflictRevs = doc._conflicts;
+
+      // 1. Fetch all conflicting versions
+      const conflictDocs = await Promise.all(
+        conflictRevs.map(rev => localDB.get(doc._id, { rev }))
+      );
+
+      // 2. Pick the winner — most recent by timestamp
+      const allVersions = [doc, ...conflictDocs];
+      const winner = allVersions.reduce((a, b) => {
+        const timeA = new Date(a.completedAt || a.updatedAt || a.createdAt || 0);
+        const timeB = new Date(b.completedAt || b.updatedAt || b.createdAt || 0);
+        return timeA > timeB ? a : b;
+      });
+
+      // 3. Delete all losing versions
+      const losers = conflictDocs.filter(d => d._rev !== winner._rev);
+      await Promise.all(
+        losers.map(loser => localDB.remove(loser._id, loser._rev))
+      );
+
+      console.log(`✅ Conflict resolved for: ${doc._id} — kept version from ${winner.completedAt || winner.updatedAt || winner.createdAt}`);
+    }
+
+  } catch (err) {
+    console.error("❌ Conflict Resolution Error:", err);
+  }
+};
 
 // Debugging tools for your browser console
 window.localDB = localDB;

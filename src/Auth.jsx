@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import localDB from './db';
+import bcrypt from 'bcryptjs';
 
 const Auth = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -10,8 +12,37 @@ const Auth = ({ onLogin }) => {
     e.preventDefault();
     // For now, we just simulate a successful login
     // Later, we will connect this to your database
-    onLogin(isLogin ? 'User' : name);
+    onLogin({ email: email, password: password });
   };
+
+  const handleRegister = async (e) => {
+  e.preventDefault();
+  
+  // Basic validation rules
+  if (password.length < 8 || !/\d/.test(password)) {
+    alert("Password must be 8+ characters and include a number.");
+    return;
+  }
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const newUser = {
+    _id: `user_${email}`,
+    type: 'user',
+    name: name,
+    email: email,
+    password: hashedPassword,
+    role: 'student', 
+    createdAt: new Date().toISOString()
+  };
+
+  try {
+    await localDB.put(newUser);
+    alert("Registration Successful! You can now login.");
+    setIsLogin(true); // Switch back to login view
+  } catch (err) {
+    alert("User already exists or database error.");
+  }
+};
 
   const neonStyle = {
     color: '#00ff2f',
@@ -55,7 +86,7 @@ const Auth = ({ onLogin }) => {
           {isLogin ? 'LOGIN' : 'SIGN UP'}
         </h1>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={isLogin ? handleSubmit : handleRegister}>
           {!isLogin && (
             <input 
               type="text" 

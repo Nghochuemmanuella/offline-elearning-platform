@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css'; 
-import localDB, { saveProgress, getLocalUser, startSync } from './db'; 
+import localDB, { saveProgress, getLocalUser, startSync, resolveConflicts } from './db'; 
+import bcrypt from 'bcryptjs'
 import Sidebar from './Sidebar'; 
 import Auth from './Auth'; 
 import LecturerDashboard from './LecturerDashboard'; 
 import Profile from './Profile';
 import AITutor from './AITutor';
+import StudentDashboard from './StudentDashboard';
 
 const COURSE_CONTENT = []
 
@@ -34,30 +36,50 @@ function App() {
   const isLecturer = user?.name?.toLowerCase().includes('admin') || user?.email?.includes('lecturer');
   const [selectedLevel, setSelectedLevel] = useState(user?.level || null);
 
-  const fetchAllCourses = useCallback(async (currentUserId) => {
+ const fetchAllCourses = useCallback(async (currentUserId) => {
     try {
+      // 1. Fetch all documents from the local PouchDB
       const result = await localDB.allDocs({ include_docs: true, attachments: true });
+      
+      // 2. Extract lessons (Modules)
       const fetched = result.rows
         .filter(row => row.doc.type === 'lesson')
         .map(row => ({ ...row.doc, id: row.doc._id }));
       setDynamicLessons(fetched);
+
+      // 3. Extract persistent progress for the logged-in student
       if (currentUserId) {
-        const progress = result.rows
-          .filter(row => row.id.startsWith(`progress_${currentUserId}_`))
-          .map(row => row.doc.lessonId);
+       const progress = [...new Set(result.rows
+  .filter(row => 
+    row.doc.type === 'progress' && 
+    (row.doc.userId === currentUserId || row.id.includes(currentUserId))
+  )
+  .map(row => row.doc.lessonId))]; 
+
+        console.log("Successfully restored progress from DB:", progress);
         setCompletedLessons(progress);
       }
-    } catch (err) { console.log(err); }
-  }, []);
+    } catch (err) { 
+      console.error("Database Fetch Error:", err); 
+    }
+  }, []); 
 
   useEffect(() => {
-    if (isLecturer) setView('lecturer');
-    fetchAllCourses(user?.id);
+    // 1. Force Lecturer view if user is an admin
+    if (isLecturer && view === 'student') setView('lecturer');
+
+    // 2. Fetch courses and progress using the most reliable ID
+    // PouchDB usually uses _id. If that's missing, we fall back to id.
+    const activeId = user?.email || user?._id || user?.id ;
+    if (activeId) {
+      fetchAllCourses(user.email || activeId);
+    }
+
+    // 3. Handle Screen Resize
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [user, isLecturer, fetchAllCourses]);
-
+  }, [user, isLecturer, view, fetchAllCourses]); // Added 'view' to dependencies for stability
   // --- NETWORK STATUS LISTENER ---
 useEffect(() => {
   const handleStatusChange = () => {
@@ -74,29 +96,99 @@ useEffect(() => {
   };
 }, []);
 
-  const handleLogin = (userData) => {
-    const userObj = typeof userData === 'string' 
-      ? { name: userData, id: userData.replace(/\s+/g, '_').toLowerCase() } 
-      : userData;
-    setUser(userObj);
-    localStorage.setItem('edubridge_user', JSON.stringify(userObj));
-    setSelectedLevel(userObj.level || null);
-    const isAdmin = userObj.name?.toLowerCase().includes('admin');
-    setView(isAdmin ? 'lecturer' : 'student');
+  const handleLogin = async (userData) => {
+    // 1. ADMIN BYPASS (Hardcoded for you to always have access)
+    if (userData.email === "admin@edubridge.com" && userData.password === "Admin1234") {
+      const adminObj = { 
+        name: "System Admin", 
+        id: "admin_root", 
+        role: "lecturer", 
+        email: userData.email,
+        level: '400' 
+      };
+      setUser(adminObj);
+      localStorage.setItem('edubridge_user', JSON.stringify(adminObj));
+      setView('lecturer');
+      startSync();
+      resolveConflicts();
+
+      return;
+    }
+
+    // 2. DATABASE SEARCH (Check for registered Students/Lecturers)
+    try {
+      const result = await localDB.allDocs({ include_docs: true });
+      
+      // Look for a user doc where email AND password match
+      const matchedUsers = result.rows.filter(row => 
+  row.doc.type === 'user' && 
+  row.doc.email === userData.email
+);
+
+const foundUser = await Promise.all(
+  matchedUsers.map(async row => {
+    const match = await bcrypt.compare(userData.password, row.doc.password);
+    return match ? row : null;
+  })
+).then(results => results.find(r => r !== null));
+
+      if (foundUser) {
+        const userObj = foundUser.doc;
+        setUser(userObj);
+        localStorage.setItem('edubridge_user', JSON.stringify(userObj));
+        setSelectedLevel(userObj.level || null);
+        
+        // Decide where to send them
+        const isAdmin = userObj.role === 'lecturer' || userObj.name?.toLowerCase().includes('admin');
+        setView(isAdmin ? 'lecturer' : 'student');
+        startSync();
+        resolveConflicts();
+      } else {
+        // If nothing matches
+        alert("❌ Invalid Email or Password. Please try again.");
+      }
+    } catch (err) {
+      console.error("Login Database Error:", err);
+      alert("⚠️ Offline Database Error. Please refresh.");
+    }
   };
    
 
-  const saveLevel = (level) => {
-  const updatedUser = { ...user, level: level };
-  setUser(updatedUser);
-  localStorage.setItem('edubridge_user', JSON.stringify(updatedUser));
-  setSelectedLevel(level);
-  
-  // Optional: Re-fetch courses specifically for this level
-  if (typeof fetchAllCourses === 'function') {
-    fetchAllCourses(user.id);
-  }
-};
+  const saveLevel = async (level) => {
+    try {
+      // 1. Update the record in the persistent database (PouchDB)
+      // We use user._id or user.id to find the correct document
+      const userId = user._id || user.id;
+      
+      if (userId) {
+        const userDoc = await localDB.get(userId);
+        const updatedDoc = { 
+          ...userDoc, 
+          level: level 
+        };
+        await localDB.put(updatedDoc);
+      }
+
+      // 2. Update the local React state and Browser Storage
+      const updatedUser = { ...user, level: level };
+      setUser(updatedUser);
+      localStorage.setItem('edubridge_user', JSON.stringify(updatedUser));
+      setSelectedLevel(level);
+      
+      // 3. Refresh courses to show only modules for the new level
+      if (typeof fetchAllCourses === 'function') {
+        fetchAllCourses(userId);
+      }
+
+      console.log(`✅ Level ${level} saved to database for admin visibility.`);
+    } catch (err) {
+      console.error("❌ Database sync failed:", err);
+      
+      // Fallback: Still update UI state so the student isn't blocked 
+      // if the database record is temporarily missing.
+      setSelectedLevel(level);
+    }
+  };
   const handleLogout = () => {
     if (window.confirm("Exit EduBridge?")) {
       localStorage.removeItem('edubridge_user');
@@ -104,25 +196,73 @@ useEffect(() => {
     }
   };
 
-  const handleComplete = async (id) => {
-    if (!user) return;
-    await saveProgress(id, 'complete', user.id);
-    setCompletedLessons(prev => [...prev, id]); // Instant UI update
-    setSelectedCourse(null);
-  };
+const handleComplete = async (lessonId) => {
+  if (!user) return;
+  
+  const activeId = user._id || user.id; 
+  
+  if (!activeId) {
+    console.error("Cannot save progress: No User ID found");
+    return;
+  }
 
-  const allCourses = [...COURSE_CONTENT, ...dynamicLessons];
-  const filtered = allCourses.filter(course => {
-  const matchesSearch = course.title.toLowerCase().includes(searchTerm.toLowerCase());
-  
-  // If user is a student, only show courses for their level
-  // Note: Standard courses like COURSE_CONTENT might need a 'level' property added later
-  const matchesLevel = isLecturer ? true : (course.level === selectedLevel);
-  
-  return matchesSearch && matchesLevel;
+  try {
+    // 1. SAVE DIRECTLY TO POUCHDB
+    // We use a unique ID and explicit 'type' so the Lecturer can filter it
+    await localDB.put({
+      _id: progressId,
+      _rev: existingDoc?._rev,
+      type: 'progress',
+      userId: user.email,
+      lessonId: lessonId,
+      status: 'complete',
+      completedAt: new Date().toISOString()
 });
-  const completionPercent = allCourses.length > 0 ? Math.round((completedLessons.length / allCourses.length) * 100) : 0;
+    
+    // 2. UPDATE LOCAL UI STATE
+    setCompletedLessons(prev => {
+      if (prev.includes(lessonId)) return prev;
+      return [...prev, lessonId];
+    });
 
+    // 3. CLOSE MODAL
+    setSelectedCourse(null);
+    
+    console.log(`✅ Progress for ${lessonId} saved for Lecturer visibility.`);
+    
+    // 4. REFRESH DATA (Optional but helpful)
+    if (typeof fetchAllCourses === 'function') {
+      fetchAllCourses(activeId);
+    }
+
+  } catch (err) {
+    console.error("❌ Persistence Error:", err);
+    // Fallback: update UI even if DB fails
+    setCompletedLessons(prev => [...prev, lessonId]);
+    setSelectedCourse(null);
+  }
+};
+  
+  // 1. Combine standard content and database lessons
+  const allCourses = [...COURSE_CONTENT, ...dynamicLessons];
+
+  // 2. Filter courses for the search bar AND the student's level
+  const levelSpecificCourses = allCourses.filter(course => {
+    const matchesSearch = course.title.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Lecturers see everything; Students see only their level (200, 300, 400)
+    const matchesLevel = isLecturer ? true : (course.level === selectedLevel);
+    
+    return matchesSearch && matchesLevel;
+  });
+
+  // 3. Calculate percentage based ONLY on modules for the current level
+  // This ensures 1/1 = 100% instead of 1/3 = 33%
+  const completionPercent = levelSpecificCourses.length > 0 
+    ? Math.round((completedLessons.length / levelSpecificCourses.length) * 100) 
+    : 0;
+
+  // --- END OF CORRECTED BLOCK ---
   if (!user) return <Auth onLogin={handleLogin} />;
   // If logged in as student but no level is selected yet
 if (user && !isLecturer && !selectedLevel) {
@@ -168,74 +308,36 @@ if (user && !isLecturer && !selectedLevel) {
   color: isOnline ? '#00ff2f' : '#fff'}}>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
         </nav>
 
-        {view === 'lecturer' ? (
-          <LecturerDashboard isMobile={isMobile} />
-        ) : view === 'ai' ? (
-          <div style={{ padding: '20px' }}><AITutor /></div>
-        ) : (
-          <main style={{ padding: '20px' }}>
-            <div style={{ marginBottom: '30px', background: '#000', color: '#fff', padding: '20px', boxShadow: '8px 8px 0px #00ff2f' }}>
-              <h1 style={{ margin: 0, color: '#00ff2f' }}>Welcome, {user?.name}!</h1>
-              <p style={{ margin: '5px 0 15px 0', opacity: 0.8 }}>Software Engineering Final Year Portal</p>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '5px' }}>
-                <span>COURSE PROGRESS</span>
-                <span>{completionPercent}%</span>
-              </div>
-              <div style={{ width: '100%', height: '10px', background: '#333' }}>
-                <div style={{ width: `${completionPercent}%`, height: '100%', background: '#00ff2f' }} />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0 }}>MODULES</h2>
-              <input type="text" placeholder="SEARCH..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ padding: '10px', background: '#000', color: '#00ff2f', border: 'none' }} />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-              {filtered.map(course => {
-                const isDone = completedLessons.includes(course.id);
-                return (
-                  <div key={course.id} style={{ background: '#fff', border: '3px solid #000', padding: '20px', boxShadow: isDone ? '6px 6px 0px #00ff2f' : '6px 6px 0px #000' }}>
-                    <small style={{ color: '#888' }}>{course.code}</small>
-                    <h3 style={{ margin: '10px 0' }}>{course.title}</h3>
-                    <button onClick={() => setSelectedCourse(course)} style={{ width: '100%', padding: '12px', background: isDone ? '#000' : '#00ff2f', color: isDone ? '#00ff2f' : '#000', border: '2px solid #000', fontWeight: 'bold', cursor: 'pointer' }}>
-                      {isDone ? 'RE-VISIT' : 'START NOW'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </main>
+      {/* --- UPDATED NAVIGATION LOGIC --- */}
+{view === 'lecturer' || view === 'upload'? (
+  <LecturerDashboard isMobile={isMobile} user={user}
+  initialMode={view === 'upload' ? 'upload' : 'view'} />
+) : view === 'profile' ? (
+   <Profile user={user} 
+   isLecturer={isLecturer}
+   allCourses={levelSpecificCourses}  
+   completedLessons={completedLessons}
+   selectedLevel={selectedLevel}
+   onLevelChange={saveLevel}/>
+) : view === 'ai' ? (
+  <div style={{ padding: '20px' }}><AITutor /></div>
+) : (
+  <StudentDashboard
+            user={user}
+            selectedLevel={selectedLevel}
+            isOnline={isOnline}
+            completionPercent={completionPercent}
+            levelSpecificCourses={levelSpecificCourses}
+            completedLessons={completedLessons}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            selectedCourse={selectedCourse}
+            setSelectedCourse={setSelectedCourse}
+            handleComplete={handleComplete}
+            LESSON_MATERIALS={LESSON_MATERIALS}
+          />
         )}
       </div>
-
-      {selectedCourse && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 }}>
-          <div style={{ background: '#fff', padding: '30px', maxWidth: '600px', width: '90%', border: '4px solid #000', boxShadow: '10px 10px 0px #00ff2f' }}>
-            <h2 style={{ margin: '0 0 20px 0', borderBottom: '2px solid #000' }}>{selectedCourse.title}</h2>
-            <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '20px', padding: '10px', background: '#f4f4f4' }}>
-              <p style={{ whiteSpace: 'pre-wrap' }}>{selectedCourse.content || LESSON_MATERIALS[selectedCourse.id] || "No offline content."}</p>
-            </div>
-
-            {selectedCourse._attachments && (
-               <div style={{ marginBottom: '20px' }}>
-                 <p style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>📎 ATTACHMENTS:</p>
-                 {Object.keys(selectedCourse._attachments).map(name => (
-                   <button key={name} onClick={async () => {
-                     const blob = await localDB.getAttachment(selectedCourse._id, name);
-                     window.open(URL.createObjectURL(blob));
-                   }} style={{ background: '#000', color: '#fff', fontSize: '0.6rem', padding: '5px', marginRight: '5px', cursor: 'pointer' }}>{name.toUpperCase()}</button>
-                 ))}
-               </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => handleComplete(selectedCourse.id)} style={{ flex: 1, padding: '15px', background: '#000', color: '#00ff2f', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>COMPLETE MODULE</button>
-              <button onClick={() => setSelectedCourse(null)} style={{ flex: 1, padding: '15px', background: '#fff', border: '1px solid #000', fontWeight: 'bold', cursor: 'pointer' }}>CLOSE</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

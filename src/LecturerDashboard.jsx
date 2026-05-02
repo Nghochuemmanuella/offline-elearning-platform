@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import localDB from './db';
 
-const LecturerDashboard = ({ isMobile }) => {
+const LecturerDashboard = ({ isMobile, user, initialMode }) => {
   const [title, setTitle] = useState('');
   const [code, setCode] = useState('');
   const [credits, setCredits] = useState('');
@@ -11,28 +11,70 @@ const LecturerDashboard = ({ isMobile }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [studentStats, setStudentStats] = useState([]);
   const [level, setLevel] = useState('400'); // Default to level 400
-
+  const [showUploadForm, setShowUploadForm] = useState(initialMode === 'upload');
+  useEffect(() => {
+    if (initialMode === 'upload') {
+      setShowUploadForm(true);
+      window.scrollTo({ top: 400, behavior: 'smooth' });
+    }
+  }, [initialMode]);
+ 
   const fetchDashboardData = async () => {
     try {
       const result = await localDB.allDocs({ include_docs: true, attachments: true });
+      const allDocs = result.rows.map(row => row.doc);
       
-      const courses = result.rows
-        .filter(row => row.doc.type === 'lesson')
-        .map(row => row.doc);
+      // 1. Get all modules (lessons)
+      const courses = allDocs.filter(doc => doc.type === 'lesson');
       setMyCourses(courses);
 
-      // Filtering out "Unknown" or empty user IDs to keep the chart clean
-      const progressDocs = result.rows
-        .filter(row => row.id.startsWith('progress_') && row.doc.userId)
-        .map(row => row.doc);
+      // 2. Get all students who have registered
+      const students = allDocs.filter(doc => doc.type === 'user' && doc.role === 'student');
 
+      // 3. Get all progress/completion records
+      const progressDocs = allDocs.filter(doc => doc.type === 'progress' || (doc._id && doc._id.startsWith('progress_'))
+    || (doc._id && doc._id.includes('completion')));
+    console.log("Found Progress Docs:", progressDocs.length, progressDocs);
+
+      
       const statsMap = {};
+      
+      // First, add every registered student to the map
+      students.forEach(student => {
+        // Use the email as the primary key because it's the most consistent
+        const key = student.email || student._id; 
+        statsMap[key] = { 
+          id: student.name || 'Unknown Student', 
+          email: student.email,
+          level: student.level || 'N/A',
+          completed: 0 
+        };
+      });
+
+      // Then, update the completion count for those who have finished modules
+      // Then, update the completion count for those who have finished modules
       progressDocs.forEach(doc => {
-        const studentId = doc.userId;
-        if (!statsMap[studentId]) {
-          statsMap[studentId] = { id: studentId, completed: 0 };
+        // 1. Extract potential identifiers from the progress document
+        const pUserId = doc.userId;
+        const pUserEmail = doc.userEmail;
+        const pIdPart = doc._id && doc._id.split('_')[1]; // Extracts from "progress_email_lesson"
+
+        // 2. Find the student in our map by checking ALL possible matches
+        const studentToUpdate = Object.values(statsMap).find(student => {
+          const sEmail = student.email?.toLowerCase();
+          
+          // Check if any part of the progress doc matches the student's email
+          return (
+            (pUserId && pUserId.toLowerCase() === sEmail) ||
+            (pUserEmail && pUserEmail.toLowerCase() === sEmail) ||
+            (pIdPart && pIdPart.toLowerCase() === sEmail)
+          );
+        });
+
+        // 3. If we found them, increment their count
+        if (studentToUpdate) {
+          studentToUpdate.completed += 1;
         }
-        statsMap[studentId].completed += 1;
       });
 
       setStudentStats(Object.values(statsMap));
@@ -40,7 +82,6 @@ const LecturerDashboard = ({ isMobile }) => {
       console.error("Error fetching dashboard data:", err);
     }
   };
-
   useEffect(() => {
     fetchDashboardData();
     const listener = localDB.changes({
@@ -115,17 +156,47 @@ const LecturerDashboard = ({ isMobile }) => {
           marginBottom: '50px', 
           marginTop: '20px' 
         }}>
-          {studentStats.length === 0 ? <p style={{ color: '#666' }}>No student data synced yet.</p> : 
-            studentStats.map(stat => (
-              <div key={stat.id} style={{ border: '3px solid #000', padding: '15px', boxShadow: '5px 5px 0px #00ff2f', backgroundColor: '#fff' }}>
-                <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#666' }}>STUDENT_ID</div>
-                <div style={{ fontSize: '1rem', fontWeight: '900', color: '#000' }}>{(stat.id || 'USER').toUpperCase()}</div>
-                <div style={{ marginTop: '10px', fontSize: '0.9rem', color: '#000' }}>
-                  COMPLETED: <span style={{ color: '#00ff2f', backgroundColor: '#000', padding: '2px 6px' }}>{stat.completed}</span>
-                </div>
-              </div>
-            ))
-          }
+         
+         {studentStats.length === 0 ? (
+  <p style={{ color: '#666' }}>No student data synced yet.</p>
+) : (
+  studentStats.map((stat) => (
+    <div 
+      key={stat.email || stat.id} 
+      style={{ 
+        border: '3px solid #000', 
+        padding: '15px', 
+        boxShadow: '5px 5px 0px #00ff2f', 
+        backgroundColor: '#fff' 
+      }}
+    >
+      {/* STUDENT NAME */}
+      <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#666' }}>STUDENT NAME</div>
+      <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#000' }}>
+        {stat.id.toUpperCase()}
+      </div>
+      
+      {/* STUDENT LEVEL & EMAIL */}
+      <div style={{ marginTop: '5px', fontSize: '0.7rem', color: '#444' }}>
+        LEVEL: <span style={{ fontWeight: 'bold' }}>{stat.level}</span> | {stat.email}
+      </div>
+
+      {/* COMPLETION COUNT */}
+      <div style={{ marginTop: '15px', fontSize: '0.9rem', color: '#000', fontWeight: 'bold' }}>
+        MODULES COMPLETED: 
+        <span style={{ 
+          marginLeft: '8px',
+          color: '#00ff2f', 
+          backgroundColor: '#000', 
+          padding: '2px 8px',
+          borderRadius: '2px'
+        }}>
+          {stat.completed}
+        </span>
+      </div>
+    </div>
+  ))
+)}
         </div>
 
         {/* SECTION 2: CREATE/EDIT FORM */}
@@ -174,6 +245,7 @@ const LecturerDashboard = ({ isMobile }) => {
                 <button onClick={() => {
                   setEditingId(course._id);
                   setTitle(course.title); setCode(course.code); setCredits(course.credits); setContent(course.content);
+                  setLevel(course.level || '400');
                   window.scrollTo({ top: 400, behavior: 'smooth' });
                 }} style={actionBtnStyle}>EDIT</button>
                 <button onClick={async () => { if(window.confirm("Delete?")) await localDB.remove(course); }} style={{ ...actionBtnStyle, backgroundColor: '#ff4444' }}>DEL</button>

@@ -9,21 +9,23 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout }) => {
 
   const menuItems = isLecturer ? [
     { name: '📊 Admin Dashboard', id: 'lecturer' },
-    { name: '📚 Content Preview', id: 'student' },
     { name: '🤖 Offline AI Assistant', id: 'ai' },
-    { name: '👤 Faculty Profile', id: 'profile' }
+    { name: '👤 Faculty Profile', id: 'profile' },
+    { name: '📤 Quick Upload', id: 'upload' },
+    { name: ' LOGOUT', id: 'logout' },
   ] : [
     { name: '🏠 Student Home', id: 'student' },
-    { name: '📖 My Courses', id: 'student' },
     { name: '🤖 Offline AI Assistant', id: 'ai' },
-    { name: '🏆 Academic Profile', id: 'profile' }
+    { name: '🏆 Academic Profile', id: 'profile' },
+    { name: ' Logout', id: 'logout' },
   ];
 
   return (
     <div style={{
       width: isOpen ? '280px' : '0px',
       position: 'fixed',
-      left: 0, top: 0, height: '100vh',
+      left: 0, top: 0, 
+      height: '100dvh',
       backgroundColor: '#000',
       color: '#00ff2f',
       transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -33,9 +35,9 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout }) => {
       flexDirection: 'column',
       borderRight: isOpen ? '2px solid #00ff2f' : 'none'
     }}>
-      
+      <div style={{ flexShrink: '0'}}></div>
       <button onClick={toggleSidebar} style={{ alignSelf: 'flex-end', margin: '20px', background: '#00ff2f', border: 'none', padding: '5px 10px', cursor: 'pointer', fontWeight: 'bold' }}>
-        CLOSE ×
+         ×
       </button>
 
       <div style={{ padding: '0 25px 30px 25px' }}>
@@ -45,36 +47,66 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout }) => {
         </div>
       </div>
 
-      <div style={{ flex: 1, overFlowY: 'auto'}}>
-        {menuItems.map((item) => (
-          <div 
-            key={item.id} 
-            onClick={() => { 
-              onNavigate(item.id); 
-              toggleSidebar(); 
-            }}
-            style={{ padding: '18px 25px', cursor: 'pointer', fontWeight: 'bold', borderBottom: '1px solid #111' }}
-          >
-            {item.name}
-          </div>
-        ))}
-      </div>
+      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch'}}> {/* Fixed typo: overflowY */}
+ 
 
-      {/* RESTORED USER INFO SECTION */}
-      <div style={{ padding: '20px 25px', 
-       paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',   backgroundColor: '#080808', borderTop: '1px solid #1a1a1a', marginTop: 'auto' }}>
-        <div style={{ fontSize: '0.7rem', color: '#666', marginBottom: '10px' }}>
-          SYSTEM USER: <br/>
-          <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 'bold' }}>{user?.name || 'Unknown User'}</span>
-        </div>
-        
-        <button 
-          onClick={onLogout}
-          style={{ width: '100%', padding: '10px', background: 'transparent', color: '#ff4444', border: '1px solid #ff4444', cursor: 'pointer', fontWeight: 'bold' }}
-        >
-           LOGOUT
-        </button>
-      </div>
+ {menuItems.map((item) => {
+  const isUploadBtn = item.id === 'upload';
+  const isLogoutBtn = item.id === 'logout';
+
+  return (
+    <div 
+      key={item.id} 
+      onClick={() => { 
+        // --- LOGIC CHANGE START ---
+        if (isLogoutBtn) {
+          onLogout(); // Call the logout function directly
+        } else {
+          onNavigate(item.id); 
+          toggleSidebar(); 
+        }
+        // --- LOGIC CHANGE END ---
+      }}
+      style={isLogoutBtn ? {
+        // STYLE FOR LOGOUT LINK
+        margin: '40px 20px 20px 20px',
+        padding: '14px', 
+        backgroundColor: '#ff4444',
+        cursor: 'pointer',
+        textAlign: 'center', 
+        fontWeight: 'bold', 
+        color: '#fff',          
+        borderTop: '1px solid #111', // Visual separator
+        fontSize:'0.85rem',
+        borderRadius: '2.5rem'
+
+      } : isUploadBtn ? {
+        // STYLE FOR QUICK UPLOAD BUTTON
+        margin: '15px 20px',
+        padding: '14px',
+        backgroundColor: '#00ff2f', 
+        color: '#000', 
+        textAlign: 'center',
+        fontWeight: '900',
+        cursor: 'pointer',
+        borderRadius: '4px',
+        boxShadow: '4px 4px 0px #444',
+        fontSize: '0.85rem',
+        letterSpacing: '1px'
+      } : {
+        // STYLE FOR REGULAR LINKS
+        padding: '18px 25px', 
+        cursor: 'pointer', 
+        fontWeight: 'bold', 
+        borderBottom: '1px solid #111',
+        color: '#00ff2f'
+      }}
+    >
+      {item.name}
+    </div>
+  );
+})}  
+</div>
     </div>
   );
 };
