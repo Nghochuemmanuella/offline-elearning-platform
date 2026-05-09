@@ -19,11 +19,12 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         icons: [
-          {
-            src: 'favicon.ico',
-            sizes: '64x64 32x32 24x24 16x16',
-            type: 'image/x-icon'  
-          },
+  {
+    src: 'favicon.png',
+    sizes: '64x64 32x32 24x24 16x16',
+    type: 'image/png',
+    
+  },
           {
             src: 'logo192.png',
             sizes: '192x192',
@@ -32,7 +33,8 @@ export default defineConfig({
            {
             src: 'logo512.png',
             sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any maskable'
           }
         ]
       }

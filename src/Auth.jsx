@@ -82,6 +82,7 @@ const Auth = ({ onLogin }) => {
         textAlign: 'center',
         boxShadow: '10px 10px 0px #00ff2f'
       }}>
+        <img src="/logo192.png" alt="EduBridge" style={{ width: '100px', marginBottom: '20px' }} />
         <h1 style={{ color: '#00ff2f', marginBottom: '30px', letterSpacing: '3px' }}>
           {isLogin ? 'LOGIN' : 'SIGN UP'}
         </h1>

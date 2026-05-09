@@ -8,6 +8,7 @@ import LecturerDashboard from './LecturerDashboard';
 import Profile from './Profile';
 import AITutor from './AITutor';
 import StudentDashboard from './StudentDashboard';
+import LandingPage from './LandingPage';
 
 const COURSE_CONTENT = []
 
@@ -21,6 +22,7 @@ const LESSON_MATERIALS = {
 };
 
 function App() {
+  const [showLanding, setShowLanding] = useState(true); 
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('edubridge_user');
     return saved ? JSON.parse(saved) : null;
@@ -263,7 +265,8 @@ const handleComplete = async (lessonId) => {
     : 0;
 
   // --- END OF CORRECTED BLOCK ---
-  if (!user) return <Auth onLogin={handleLogin} />;
+  if (showLanding) return <LandingPage onEnter={() => setShowLanding(false)} />;
+if (!user) return <Auth onLogin={handleLogin} />;
   // If logged in as student but no level is selected yet
 if (user && !isLecturer && !selectedLevel) {
   return (

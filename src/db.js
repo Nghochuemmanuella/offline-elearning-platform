@@ -5,12 +5,14 @@ const localDB = new PouchDB('elearning_db');
 
 // 2. Remote Database URL
 // Note: We use the string directly in the sync function to avoid ReferenceErrors
-const remoteDBURL = 'http://admin:ella123@127.0.0.1:5984/edubridge_remote';
-
-export const startSync = () => {
+const remoteDBURL = import.meta.env.VITE_COUCHDB_URL;
+  export const startSync = () => {
+  if (!remoteDBURL) {
+    console.warn("⚠️ No remote DB URL configured. Running in local-only mode.");
+    return;
+  }
   console.log("🚀 EduBridge Sync Engine: Initializing...");
 
-  // We use remoteDBURL (the string) here to ensure it is defined
   const syncHandler = localDB.sync(remoteDBURL, {
     live: true,   // Keeps the connection open
     retry: true,  // Automatically reconnects when Bamenda network returns
@@ -127,4 +129,3 @@ export const resolveConflicts = async () => {
 
 // Debugging tools for your browser console
 window.localDB = localDB;
-window.remoteDBURL = remoteDBURL;
