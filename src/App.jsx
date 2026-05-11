@@ -306,10 +306,18 @@ if (user && !isLecturer && !selectedLevel) {
         <nav style={{ background: '#000', color: '#00ff2f', padding: '15px', display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #00ff2f', position: 'sticky', top: 0, zIndex: 100 }}>
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{ background: 'none', border: 'none', color: '#00ff2f', fontSize: '20px', cursor: 'pointer' }}>☰</button>
           <span style={{ fontWeight: '900' }}>EDUBRIDGE</span>
-          <span style={{ fontSize: '0.7rem', border: '1px solid #00ff2f', padding: '2px 5px', border: isOnline ? '1px solid #00ff2f' : '1px solid #ff4444', 
+         <span style={{ 
+  fontSize: '0.6rem', 
+  padding: '2px 5px',
+  border: isOnline ? '1px solid #00ff2f' : '1px solid #ff4444', 
   backgroundColor: isOnline ? 'transparent' : '#ff4444',
-  color: isOnline ? '#00ff2f' : '#fff'}}>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
-        </nav>
+  color: isOnline ? '#00ff2f' : '#fff',
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
+}}>
+  {isOnline ? 'ON' : 'OFF'}
+</span>
+          </nav>
 
       {/* --- UPDATED NAVIGATION LOGIC --- */}
 {view === 'lecturer' || view === 'upload'? (
