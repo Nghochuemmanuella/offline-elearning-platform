@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout }) => {
+const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout,  hasNewModules }) => {
   
   // 1. Identify if user is Lecturer/Admin
   const isLecturer = user?.role === 'lecturer' || 
@@ -14,7 +14,7 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout }) => {
     { name: '📤 Quick Upload', id: 'upload' },
     { name: ' LOGOUT', id: 'logout' },
   ] : [
-    { name: '🏠 Student Home', id: 'student' },
+    { name: '🏠 Student Home', id: 'student', badge: true },
     { name: '🤖 Offline AI Assistant', id: 'ai' },
     { name: '🏆 Academic Profile', id: 'profile' },
     { name: ' Logout', id: 'logout' },
@@ -36,13 +36,13 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout }) => {
       borderRight: isOpen ? '2px solid #00ff2f' : 'none'
     }}>
       <div style={{ flexShrink: '0'}}></div>
-      <button onClick={toggleSidebar} style={{ alignSelf: 'flex-end', margin: '20px', background: '#00ff2f', border: 'none', padding: '5px 10px', cursor: 'pointer', fontWeight: 'bold' }}>
+      <button onClick={toggleSidebar} style={{ alignSelf: 'flex-end', margin: '20px', background: '#00ff2f', border: 'none', borderRadius: '6px', padding: '5px 12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}>
          ×
       </button>
 
       <div style={{ padding: '0 25px 30px 25px' }}>
         <h2 style={{ fontSize: '1.2rem', letterSpacing: '2px', fontWeight: '900', margin: 0 }}>EDUBRIDGE</h2>
-        <div style={{ marginTop: '5px', fontSize: '0.65rem', color: '#00ff2f', border: '1px solid #00ff2f', display: 'inline-block', padding: '2px 5px' }}>
+        <div style={{ marginTop: '5px', fontSize: '0.65rem', color: '#00ff2f', border: '1px solid rgba(0,255,47,0.4)', display: 'inline-block', padding: '3px 10px', borderRadius: '20px', letterSpacing: '1px' }}>
           {isLecturer ? 'LECTURER PORTAL' : 'STUDENT ENGINE'}
         </div>
       </div>
@@ -89,20 +89,31 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout }) => {
         textAlign: 'center',
         fontWeight: '900',
         cursor: 'pointer',
-        borderRadius: '4px',
-        boxShadow: '4px 4px 0px #444',
+        borderRadius: '10px',
+        boxShadow: '0 4px 12px rgba(0,255,47,0.25)',
         fontSize: '0.85rem',
-        letterSpacing: '1px'
+        letterSpacing: '1px',
+        transition: 'opacity 0.15s ease',
       } : {
         // STYLE FOR REGULAR LINKS
         padding: '18px 25px', 
         cursor: 'pointer', 
         fontWeight: 'bold', 
         borderBottom: '1px solid #111',
-        color: '#00ff2f'
+        color: '#00ff2f',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
       }}
     >
       {item.name}
+      {item.badge && hasNewModules && (
+    <span style={{
+      width: '10px', height: '10px',
+      borderRadius: '50%', background: '#ff4444',
+      display: 'inline-block', flexShrink: 0,
+    }} />
+  )}
     </div>
   );
 })}  

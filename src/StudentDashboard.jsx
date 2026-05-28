@@ -1,5 +1,6 @@
 import React, { useState, useEffect} from 'react';
 import localDB from './db';
+import QuizTaker from './QuizTaker';
 
 const ANIMATIONS = `
   @keyframes fadeSlideUp {
@@ -11,7 +12,7 @@ const ANIMATIONS = `
     to   { opacity: 1; }
   }
   @keyframes slideInUp {
-    from { opacity: 0; transform: translateY(60px) scale(0.97); }
+    from { opacity: 0; transform: translateY(40px) scale(0.98); }
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
   @keyframes toastIn {
@@ -22,17 +23,44 @@ const ANIMATIONS = `
     0%, 100% { opacity: 1; }
     50%       { opacity: 0.6; }
   }
-  .edu-card { transition: transform 0.15s ease, box-shadow 0.15s ease !important; }
-  .edu-card:hover { transform: translate(-3px, -3px) !important; }
-  .edu-btn { transition: transform 0.1s ease !important; }
-  .edu-btn:active { transform: scale(0.97) !important; }
-  .edu-search:focus { box-shadow: 4px 4px 0px #00ff2f !important; outline: none !important; }
-  .edu-attach-btn { transition: background 0.15s ease, color 0.15s ease !important; }
-  .edu-attach-btn:hover { background: #00ff2f !important; color: #000 !important; }
-  .edu-stat-box { transition: border-color 0.2s ease, box-shadow 0.2s ease !important; }
-  .edu-stat-box:hover { border-color: #00ff2f !important; box-shadow: 3px 3px 0px #00ff2f !important; }
+  .edu-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  }
+  .edu-card:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 12px 32px rgba(0,255,47,0.18) !important;
+  }
+  .edu-btn {
+    transition: transform 0.1s ease, opacity 0.15s ease !important;
+  }
+  .edu-btn:active {
+    transform: scale(0.97) !important;
+  }
+  .edu-search:focus {
+    box-shadow: 0 0 0 3px rgba(0,255,47,0.25) !important;
+    outline: none !important;
+    border-color: #00ff2f !important;
+  }
+  .edu-attach-btn {
+    transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease !important;
+  }
+  .edu-attach-btn:hover {
+    background: #00ff2f !important;
+    color: #000 !important;
+    transform: translateY(-1px) !important;
+  }
+  .edu-stat-box {
+    transition: box-shadow 0.2s ease, transform 0.2s ease !important;
+  }
+  .edu-stat-box:hover {
+    box-shadow: 0 6px 20px rgba(0,255,47,0.15) !important;
+    transform: translateY(-2px) !important;
+  }
+  .edu-filter-btn {
+    transition: background 0.15s ease, color 0.15s ease !important;
+  }
 `;
-// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+
 const LESSON_MATERIALS_DEFAULT = {
   1: "Focus on Offline-First Design: Learn about Service Workers and PouchDB synchronization patterns.",
   2: "Database Systems: Understanding NoSQL vs SQL. We use CouchDB for its master-master replication.",
@@ -42,25 +70,24 @@ const LESSON_MATERIALS_DEFAULT = {
   6: "Client-Server: This module covers the Bridge you just built between PouchDB and CouchDB!"
 };
 
-// ─── STYLES ──────────────────────────────────────────────────────────────────
 const S = {
-  // Layout
   main: {
     padding: '24px',
     fontFamily: 'monospace',
     maxWidth: '1200px',
     margin: '0 auto',
+    background: '#f4f6f8',
+    minHeight: '100vh',
   },
-  
 
   // ── Welcome Banner ──
   banner: {
-    background: '#000',
+    background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)',
     color: '#fff',
-    padding: '24px',
+    padding: '28px',
     marginBottom: '24px',
-    border: '3px solid #000',
-    boxShadow: '8px 8px 0px #00ff2f',
+    borderRadius: '16px',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,255,47,0.1)',
     position: 'relative',
     overflow: 'hidden',
   },
@@ -82,19 +109,20 @@ const S = {
   },
   bannerSub: {
     margin: '4px 0 0',
-    opacity: 0.6,
+    opacity: 0.5,
     fontSize: '0.75rem',
     textTransform: 'uppercase',
     letterSpacing: '1px',
   },
   levelBadge: {
-    background: '#00ff2f',
-    color: '#000',
+    background: 'rgba(0,255,47,0.15)',
+    color: '#00ff2f',
     fontWeight: '900',
-    fontSize: '0.75rem',
-    padding: '6px 14px',
+    fontSize: '0.72rem',
+    padding: '6px 16px',
     letterSpacing: '2px',
-    border: '2px solid #00ff2f',
+    border: '1px solid rgba(0,255,47,0.3)',
+    borderRadius: '20px',
     flexShrink: 0,
   },
 
@@ -106,13 +134,15 @@ const S = {
     marginBottom: '20px',
   },
   statBox: {
-    background: '#111',
-    border: '1px solid #333',
-    padding: '12px 14px',
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '10px',
+    padding: '14px 16px',
+    backdropFilter: 'blur(10px)',
   },
   statLabel: {
     fontSize: '0.6rem',
-    color: '#666',
+    color: '#888',
     letterSpacing: '1.5px',
     textTransform: 'uppercase',
     marginBottom: '4px',
@@ -124,7 +154,7 @@ const S = {
     lineHeight: 1,
   },
   statSub: {
-    fontSize: '0.65rem',
+    fontSize: '0.62rem',
     color: '#555',
     marginTop: '3px',
   },
@@ -134,20 +164,25 @@ const S = {
     display: 'flex',
     justifyContent: 'space-between',
     fontSize: '0.7rem',
-    marginBottom: '6px',
-    letterSpacing: '1px',
+    marginBottom: '8px',
+    letterSpacing: '0.5px',
+    color: '#aaa',
   },
   progressTrack: {
     width: '100%',
-    height: '12px',
-    background: '#222',
+    height: '8px',
+    background: 'rgba(255,255,255,0.1)',
+    borderRadius: '99px',
     position: 'relative',
+    overflow: 'hidden',
   },
   progressFill: (pct) => ({
     width: `${pct}%`,
     height: '100%',
-    background: '#00ff2f',
+    background: 'linear-gradient(90deg, #00cc25, #00ff2f)',
+    borderRadius: '99px',
     transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)',
+    boxShadow: '0 0 10px rgba(0,255,47,0.4)',
   }),
 
   // ── Toolbar ──
@@ -161,42 +196,46 @@ const S = {
   },
   filterGroup: {
     display: 'flex',
-    gap: '0',
+    gap: '6px',
   },
   filterBtn: (active) => ({
     padding: '8px 16px',
     background: active ? '#000' : '#fff',
-    color: active ? '#00ff2f' : '#000',
-    border: '2px solid #000',
-    borderRight: 'none',
+    color: active ? '#00ff2f' : '#555',
+    border: `1px solid ${active ? '#000' : '#ddd'}`,
+    borderRadius: '8px',
     fontFamily: 'monospace',
-    fontWeight: '900',
+    fontWeight: '700',
     fontSize: '0.7rem',
-    letterSpacing: '1px',
+    letterSpacing: '0.5px',
     cursor: 'pointer',
-    transition: 'all 0.1s',
+    boxShadow: active ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
   }),
   filterBtnLast: (active) => ({
     padding: '8px 16px',
     background: active ? '#000' : '#fff',
-    color: active ? '#00ff2f' : '#000',
-    border: '2px solid #000',
+    color: active ? '#00ff2f' : '#555',
+    border: `1px solid ${active ? '#000' : '#ddd'}`,
+    borderRadius: '8px',
     fontFamily: 'monospace',
-    fontWeight: '900',
+    fontWeight: '700',
     fontSize: '0.7rem',
-    letterSpacing: '1px',
+    letterSpacing: '0.5px',
     cursor: 'pointer',
+    boxShadow: active ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
   }),
   searchInput: {
-    padding: '10px 14px',
-    background: '#000',
-    color: '#00ff2f',
-    border: '2px solid #000',
+    padding: '10px 16px',
+    background: '#fff',
+    color: '#000',
+    border: '1px solid #e0e0e0',
+    borderRadius: '8px',
     fontFamily: 'monospace',
     fontSize: '0.75rem',
     outline: 'none',
-    width: '200px',
-    letterSpacing: '1px',
+    width: '220px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
   },
 
   // ── Module Grid ──
@@ -209,24 +248,27 @@ const S = {
   // Module Card
   card: (isDone) => ({
     background: '#fff',
-    border: '3px solid #000',
+    border: `1px solid ${isDone ? 'rgba(0,255,47,0.3)' : '#e8e8e8'}`,
+    borderRadius: '12px',
     padding: '0',
-    boxShadow: isDone ? '6px 6px 0px #00ff2f' : '6px 6px 0px #000',
+    boxShadow: isDone
+      ? '0 4px 20px rgba(0,255,47,0.12)'
+      : '0 2px 12px rgba(0,0,0,0.06)',
     display: 'flex',
     flexDirection: 'column',
-    transition: 'transform 0.1s, box-shadow 0.1s',
+    overflow: 'hidden',
     cursor: 'default',
   }),
   cardHeader: (isDone) => ({
-    background: isDone ? '#00ff2f' : '#000',
+    background: isDone ? 'linear-gradient(135deg, #00cc25, #00ff2f)' : 'linear-gradient(135deg, #0a0a0a, #1a1a1a)',
     color: isDone ? '#000' : '#00ff2f',
     padding: '10px 16px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    fontSize: '0.65rem',
-    letterSpacing: '1.5px',
-    fontWeight: '900',
+    fontSize: '0.62rem',
+    letterSpacing: '1px',
+    fontWeight: '700',
   }),
   cardBody: {
     padding: '16px',
@@ -236,47 +278,48 @@ const S = {
     gap: '8px',
   },
   cardCode: {
-    fontSize: '0.65rem',
-    color: '#999',
+    fontSize: '0.62rem',
+    color: '#aaa',
     letterSpacing: '1px',
     textTransform: 'uppercase',
   },
   cardTitle: {
     margin: 0,
     fontSize: '0.95rem',
-    fontWeight: '900',
+    fontWeight: '800',
     lineHeight: 1.3,
-    color: '#000',
+    color: '#111',
     flex: 1,
   },
   cardMeta: {
     display: 'flex',
-    gap: '8px',
+    gap: '6px',
     flexWrap: 'wrap',
     marginTop: '4px',
   },
   metaTag: (color) => ({
-    fontSize: '0.6rem',
-    padding: '2px 6px',
-    background: color === 'green' ? '#000' : '#f0f0f0',
-    color: color === 'green' ? '#00ff2f' : '#666',
-    border: `1px solid ${color === 'green' ? '#000' : '#ddd'}`,
-    letterSpacing: '1px',
-    fontWeight: '700',
+    fontSize: '0.58rem',
+    padding: '3px 8px',
+    background: color === 'green' ? 'rgba(0,255,47,0.1)' : '#f5f5f5',
+    color: color === 'green' ? '#00aa1f' : '#888',
+    border: `1px solid ${color === 'green' ? 'rgba(0,255,47,0.25)' : '#e8e8e8'}`,
+    borderRadius: '20px',
+    letterSpacing: '0.5px',
+    fontWeight: '600',
   }),
   cardBtn: (isDone) => ({
     width: '100%',
     padding: '13px',
-    background: isDone ? '#000' : '#00ff2f',
+    background: isDone ? '#111' : '#00ff2f',
     color: isDone ? '#00ff2f' : '#000',
-    border: '2px solid #000',
-    borderTop: '3px solid #000',
+    border: 'none',
+    borderTop: '1px solid rgba(0,0,0,0.08)',
     fontFamily: 'monospace',
     fontWeight: '900',
     fontSize: '0.8rem',
-    letterSpacing: '2px',
+    letterSpacing: '1.5px',
     cursor: 'pointer',
-    transition: 'opacity 0.1s',
+    borderRadius: '0 0 12px 12px',
   }),
 
   // ── Empty State ──
@@ -284,16 +327,18 @@ const S = {
     gridColumn: '1 / -1',
     padding: '60px 20px',
     textAlign: 'center',
-    border: '3px dashed #000',
+    border: '2px dashed #e0e0e0',
+    borderRadius: '12px',
     background: '#fff',
   },
   emptyTitle: {
     fontWeight: '900',
-    fontSize: '1.2rem',
+    fontSize: '1.1rem',
     marginBottom: '8px',
+    color: '#333',
   },
   emptySub: {
-    color: '#666',
+    color: '#aaa',
     fontSize: '0.8rem',
   },
 
@@ -302,35 +347,39 @@ const S = {
     position: 'fixed',
     top: 0, left: 0,
     width: '100%', height: '100%',
-    background: 'rgba(0,0,0,0.92)',
+    background: 'rgba(0,0,0,0.75)',
+    backdropFilter: 'blur(6px)',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10000,
     padding: '20px',
+    animation: 'fadeIn 0.2s ease',
   },
   modal: {
     background: '#fff',
     padding: '0',
-    maxWidth: '640px',
+    maxWidth: '620px',
     width: '100%',
-    border: '4px solid #000',
-    boxShadow: '12px 12px 0px #00ff2f',
+    borderRadius: '16px',
+    boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
     maxHeight: '90vh',
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
+    animation: 'slideInUp 0.25s ease',
   },
   modalHeader: {
-    background: '#000',
+    background: 'linear-gradient(135deg, #0a0a0a, #1a1a1a)',
     color: '#00ff2f',
-    padding: '18px 24px',
-    borderBottom: '3px solid #00ff2f',
+    padding: '20px 24px',
+    borderBottom: '1px solid rgba(0,255,47,0.15)',
+    borderRadius: '16px 16px 0 0',
   },
   modalCode: {
-    fontSize: '0.65rem',
+    fontSize: '0.62rem',
     letterSpacing: '2px',
-    opacity: 0.6,
+    opacity: 0.5,
     marginBottom: '4px',
   },
   modalTitle: {
@@ -345,23 +394,26 @@ const S = {
     overflowY: 'auto',
   },
   modalContent: {
-    background: '#f5f5f5',
-    border: '2px solid #e0e0e0',
+    background: '#f8f8f8',
+    border: '1px solid #ebebeb',
+    borderRadius: '8px',
     padding: '16px',
     marginBottom: '20px',
     fontSize: '0.85rem',
     lineHeight: 1.7,
-    color: '#111',
+    color: '#333',
     whiteSpace: 'pre-wrap',
     maxHeight: '220px',
     overflowY: 'auto',
   },
   attachLabel: {
-    fontSize: '0.65rem',
-    fontWeight: '900',
-    letterSpacing: '1.5px',
+    fontSize: '0.62rem',
+    fontWeight: '700',
+    letterSpacing: '1px',
     marginBottom: '8px',
     display: 'block',
+    color: '#888',
+    textTransform: 'uppercase',
   },
   attachGrid: {
     display: 'flex',
@@ -370,51 +422,59 @@ const S = {
     marginBottom: '20px',
   },
   attachBtn: {
-    background: '#000',
+    background: '#111',
     color: '#00ff2f',
-    border: '2px solid #000',
-    padding: '8px 12px',
+    border: '1px solid rgba(0,255,47,0.2)',
+    borderRadius: '8px',
+    padding: '8px 14px',
     fontFamily: 'monospace',
     fontSize: '0.65rem',
     fontWeight: '700',
-    letterSpacing: '1px',
+    letterSpacing: '0.5px',
     cursor: 'pointer',
   },
   modalActions: {
     display: 'flex',
-    gap: '0',
-    borderTop: '3px solid #000',
+    gap: '12px',
+    padding: '16px 24px',
+    borderTop: '1px solid #f0f0f0',
+    background: '#fafafa',
+    borderRadius: '0 0 16px 16px',
   },
   actionBtn: (primary) => ({
     flex: 1,
-    padding: '16px',
-    background: primary ? '#000' : '#fff',
-    color: primary ? '#00ff2f' : '#000',
-    border: 'none',
-    borderRight: primary ? '2px solid #000' : 'none',
+    padding: '13px',
+    background: primary ? '#111' : '#fff',
+    color: primary ? '#00ff2f' : '#555',
+    border: primary ? 'none' : '1px solid #ddd',
+    borderRadius: '8px',
     fontFamily: 'monospace',
     fontWeight: '900',
     fontSize: '0.8rem',
-    letterSpacing: '2px',
+    letterSpacing: '1px',
     cursor: 'pointer',
+    boxShadow: primary ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
   }),
 };
+
 function Toast({ message }) {
   return (
     <div style={{
       position: 'fixed', bottom: '30px', right: '30px',
-      background: '#000', color: '#00ff2f',
-      border: '3px solid #00ff2f', padding: '15px 20px',
-      fontFamily: 'monospace', fontWeight: '900',
-      fontSize: '0.85rem', letterSpacing: '1px',
-      boxShadow: '6px 6px 0px #00ff2f',
-      zIndex: 99999, animation: 'fadeIn 0.2s ease'
+      background: '#111', color: '#00ff2f',
+      border: '1px solid rgba(0,255,47,0.3)',
+      borderRadius: '12px',
+      padding: '14px 20px',
+      fontFamily: 'monospace', fontWeight: '700',
+      fontSize: '0.85rem', letterSpacing: '0.5px',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.25), 0 0 20px rgba(0,255,47,0.1)',
+      zIndex: 99999, animation: 'toastIn 0.3s ease',
     }}>
       {message}
     </div>
   );
 }
-// ─── COMPONENT ───────────────────────────────────────────────────────────────
+
 function StudentDashboard({
   user,
   selectedLevel,
@@ -433,6 +493,7 @@ function StudentDashboard({
   const [hovered, setHovered] = useState(null);
   const [toast, setToast] = useState(null);
   const [mounted, setMounted] = useState(false);
+  const [quizCourse, setQuizCourse] = useState(null);
 
   useEffect(() => {
     const existing = document.getElementById('edu-animations');
@@ -444,7 +505,6 @@ function StudentDashboard({
     }
     setTimeout(() => setMounted(true), 50);
   }, []);
-  
 
   const showToast = (msg) => {
     setToast(msg);
@@ -471,29 +531,28 @@ function StudentDashboard({
             <h1 style={S.bannerTitle}>
               {user?.name?.toUpperCase() || 'STUDENT'}
             </h1>
-           <p style={S.bannerSub}>Welcome back! You have {pendingCount} module{pendingCount !== 1 ? 's' : ''} pending.</p>
-            </div>
+            <p style={S.bannerSub}>Welcome back! You have {pendingCount} module{pendingCount !== 1 ? 's' : ''} pending.</p>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
             <span style={S.levelBadge}>LEVEL {selectedLevel}</span>
-
           </div>
         </div>
 
         {/* Stats */}
         <div style={S.statsRow}>
-          <div style={S.statBox}>
+          <div className="edu-stat-box" style={S.statBox}>
             <div style={S.statLabel}>Completed</div>
             <div style={S.statValue}>{completedCount}</div>
             <div style={S.statSub}>modules done</div>
           </div>
-          <div style={S.statBox}>
+          <div className="edu-stat-box" style={S.statBox}>
             <div style={S.statLabel}>Remaining</div>
             <div style={{ ...S.statValue, color: pendingCount > 0 ? '#fff' : '#00ff2f' }}>
               {pendingCount}
             </div>
             <div style={S.statSub}>to finish</div>
           </div>
-          <div style={S.statBox}>
+          <div className="edu-stat-box" style={S.statBox}>
             <div style={S.statLabel}>Progress</div>
             <div style={S.statValue}>{completionPercent}%</div>
             <div style={S.statSub}>overall</div>
@@ -507,16 +566,9 @@ function StudentDashboard({
         </div>
         <div style={S.progressTrack}>
           <div style={S.progressFill(mounted ? completionPercent : 0)} />
-          {completionPercent > 0 && completionPercent < 100 && (
-            <div style={{
-              position: 'absolute', right: `${100 - completionPercent}%`,
-              top: '-18px', fontSize: '0.6rem', color: '#00ff2f',
-              transform: 'translateX(50%)', letterSpacing: '1px',
-            }}>{completionPercent}%</div>
-          )}
         </div>
         {completionPercent === 100 && (
-          <p style={{ marginTop: '10px', color: '#00ff2f', fontWeight: '900', fontSize: '0.8rem', letterSpacing: '2px' }}>
+          <p style={{ marginTop: '10px', color: '#00ff2f', fontWeight: '900', fontSize: '0.8rem', letterSpacing: '1px' }}>
             ✓ ALL MODULES COMPLETE — EXCELLENT WORK!
           </p>
         )}
@@ -524,8 +576,8 @@ function StudentDashboard({
 
       {/* ── Toolbar ── */}
       <div style={S.toolbar}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0' }}>
-          <h2 style={{ margin: 0, fontWeight: '900', letterSpacing: '-0.5px', marginRight: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h2 style={{ margin: 0, fontWeight: '900', letterSpacing: '-0.5px', color: '#111' }}>
             MODULES
           </h2>
           <div style={S.filterGroup}>
@@ -536,6 +588,7 @@ function StudentDashboard({
             ].map(({ key, label }, i, arr) => (
               <button
                 key={key}
+                className="edu-filter-btn"
                 onClick={() => setFilter(key)}
                 style={i === arr.length - 1 ? S.filterBtnLast(filter === key) : S.filterBtn(filter === key)}
               >
@@ -544,14 +597,14 @@ function StudentDashboard({
             ))}
           </div>
         </div>
-       <input
+        <input
           type="text"
-          placeholder="SEARCH MODULES..."
+          placeholder="Search modules..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="edu-search"
           style={S.searchInput}
-           />
+        />
       </div>
 
       {/* ── Module Grid ── */}
@@ -559,41 +612,38 @@ function StudentDashboard({
         {displayedCourses.length === 0 ? (
           <div style={S.empty}>
             <div style={S.emptyTitle}>
-              {searchTerm ? `NO RESULTS FOR "${searchTerm.toUpperCase()}"` : 'NO MODULES HERE YET'}
+              {searchTerm ? `No results for "${searchTerm}"` : 'No modules here yet'}
             </div>
             <p style={S.emptySub}>
               {searchTerm
                 ? 'Try a different search term or clear the filter.'
                 : filter === 'done'
                   ? "You haven't completed any modules yet. Start one below!"
-                  : 'Your lecturer hasn\'t uploaded modules for this level yet.'}
+                  : "Your lecturer hasn't uploaded modules for this level yet."}
             </p>
             {searchTerm && (
               <button
+                className="edu-btn"
                 onClick={() => setSearchTerm('')}
-                style={{ ...S.cardBtn(false), width: 'auto', padding: '10px 20px', marginTop: '16px', display: 'inline-block' }}
+                style={{ ...S.cardBtn(false), width: 'auto', padding: '10px 20px', marginTop: '16px', display: 'inline-block', borderRadius: '8px' }}
               >
                 CLEAR SEARCH
               </button>
             )}
           </div>
         ) : (
-          displayedCourses.map((course, index ) => {
+          displayedCourses.map((course, index) => {
             const isDone = completedLessons.includes(course.id);
             const hasAttachments = course._attachments && Object.keys(course._attachments).length > 0;
-            const isHovered = hovered === course.id;
 
             return (
-     <div
-         key={course.id}
-         className="edu-card"
-         style={{
-          ...S.card(isDone),
-         boxShadow: isHovered
-         ? isDone ? '8px 8px 0px #00ff2f' : '8px 8px 0px #000'
-         : isDone ? '6px 6px 0px #00ff2f' : '6px 6px 0px #000',
-         animation: `fadeSlideUp 0.35s ease ${index * 0.06}s both`,
-         }}
+              <div
+                key={course.id}
+                className="edu-card"
+                style={{
+                  ...S.card(isDone),
+                  animation: `fadeSlideUp 0.35s ease ${index * 0.06}s both`,
+                }}
                 onMouseEnter={() => setHovered(course.id)}
                 onMouseLeave={() => setHovered(null)}
               >
@@ -616,21 +666,39 @@ function StudentDashboard({
                       </span>
                     )}
                     {course.content && (
-                      <span style={S.metaTag()}>CONTENT AVAILABLE</span>
+                      <>
+                        <span style={S.metaTag()}>CONTENT</span>
+                        <span style={S.metaTag()}>
+                          ~{Math.ceil(course.content.split(' ').length / 200)} MIN READ
+                        </span>
+                      </>
                     )}
                     <span style={S.metaTag()}>OFFLINE READY</span>
+                    {(() => {
+                      const accessed = JSON.parse(localStorage.getItem('lastAccessed') || '{}');
+                      const time = accessed[course.id];
+                      if (!time) return null;
+                      const date = new Date(time);
+                      const now = new Date();
+                      const diffHrs = Math.floor((now - date) / 3600000);
+                      const label = diffHrs < 1 ? 'Just now' : diffHrs < 24 ? `${diffHrs}h ago` : `${Math.floor(diffHrs / 24)}d ago`;
+                      return <span style={S.metaTag()}>🕒 {label}</span>;
+                    })()}
                   </div>
                 </div>
 
                 {/* Action Button */}
-    <button
-                
-                    
-         className="edu-btn"
-         onClick={() => setSelectedCourse(course)}
-         style={S.cardBtn(isDone)}
-         >
-        {isDone ? '↩ RE-VISIT MODULE' : '→ START NOW'} 
+                <button
+                  className="edu-btn"
+                  onClick={() => {
+                    setSelectedCourse(course);
+                    const accessed = JSON.parse(localStorage.getItem('lastAccessed') || '{}');
+                    accessed[course.id] = new Date().toISOString();
+                    localStorage.setItem('lastAccessed', JSON.stringify(accessed));
+                  }}
+                  style={S.cardBtn(isDone)}
+                >
+                  {isDone ? '↩ RE-VISIT MODULE' : '→ START NOW'}
                 </button>
               </div>
             );
@@ -657,16 +725,19 @@ function StudentDashboard({
               {/* Status Bar */}
               <div style={{
                 display: 'flex', gap: '12px', marginBottom: '20px',
-                padding: '10px 14px', background: '#f5f5f5',
-                border: '2px solid #e0e0e0', alignItems: 'center',
+                padding: '10px 14px',
+                background: completedLessons.includes(selectedCourse.id) ? 'rgba(0,255,47,0.06)' : '#f8f8f8',
+                border: `1px solid ${completedLessons.includes(selectedCourse.id) ? 'rgba(0,255,47,0.2)' : '#ebebeb'}`,
+                borderRadius: '8px',
+                alignItems: 'center',
               }}>
                 <span style={{
-                  fontSize: '0.65rem', fontWeight: '900', letterSpacing: '1px',
-                  color: completedLessons.includes(selectedCourse.id) ? '#00aa00' : '#666',
+                  fontSize: '0.65rem', fontWeight: '700', letterSpacing: '0.5px',
+                  color: completedLessons.includes(selectedCourse.id) ? '#00aa00' : '#999',
                 }}>
                   {completedLessons.includes(selectedCourse.id) ? '✓ COMPLETED' : '◎ NOT YET COMPLETED'}
                 </span>
-                <span style={{ fontSize: '0.65rem', color: '#999', marginLeft: 'auto', letterSpacing: '1px' }}>
+                <span style={{ fontSize: '0.65rem', color: '#bbb', marginLeft: 'auto' }}>
                   LEVEL {selectedCourse.level || selectedLevel}
                 </span>
               </div>
@@ -687,6 +758,7 @@ function StudentDashboard({
                     {Object.keys(selectedCourse._attachments).map(name => (
                       <button
                         key={name}
+                        className="edu-attach-btn"
                         style={S.attachBtn}
                         onClick={async () => {
                           const blob = await localDB.getAttachment(selectedCourse._id, name);
@@ -701,26 +773,46 @@ function StudentDashboard({
               )}
             </div>
 
+            {/* Take Quiz Button */}
+            <div style={{ padding: '0 24px 16px' }}>
+              <button
+                className="edu-btn"
+                style={{
+                  width: '100%', padding: '11px',
+                  background: '#f5f5f5', color: '#333',
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '8px',
+                  fontFamily: 'monospace', fontWeight: '700',
+                  fontSize: '0.8rem', letterSpacing: '1px', cursor: 'pointer',
+                }}
+                onClick={() => { setQuizCourse(selectedCourse); setSelectedCourse(null); }}
+              >
+                🧪 TAKE QUIZ
+              </button>
+            </div>
+
             {/* Modal Actions */}
             <div style={S.modalActions}>
               <button
+                className="edu-btn"
                 style={S.actionBtn(true)}
                 onClick={async () => {
-                await handleComplete(selectedCourse.id);
+                  await handleComplete(selectedCourse.id);
                   showToast('✓ MODULE COMPLETE — PROGRESS SAVED!');
                 }}
-                onMouseEnter={e => (e.target.style.background = '#111')}
-                onMouseLeave={e => (e.target.style.background = '#000')}
+                onMouseEnter={e => (e.currentTarget.style.background = '#222')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#111')}
               >
                 {completedLessons.includes(selectedCourse.id)
                   ? '✓ MARK AS RE-DONE'
                   : '✓ COMPLETE MODULE'}
               </button>
               <button
+                className="edu-btn"
                 style={S.actionBtn(false)}
                 onClick={() => setSelectedCourse(null)}
-                onMouseEnter={e => (e.target.style.background = '#f0f0f0')}
-                onMouseLeave={e => (e.target.style.background = '#fff')}
+                onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
               >
                 ✕ CLOSE
               </button>
@@ -728,8 +820,20 @@ function StudentDashboard({
           </div>
         </div>
       )}
-        {toast && <Toast message={toast} />}
-   
+
+      {toast && <Toast message={toast} />}
+      {quizCourse && (
+        <QuizTaker
+          course={quizCourse}
+          user={user}
+          onClose={() => setQuizCourse(null)}
+          onComplete={(lessonId) => {
+            handleComplete(lessonId);
+            setQuizCourse(null);
+            showToast('🏆 QUIZ PASSED — MODULE COMPLETE!');
+          }}
+        />
+      )}
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import localDB from './db';
+import QuizBuilder from './QuizBuilder';
 
 const LecturerDashboard = ({ isMobile, user, initialMode }) => {
   const [title, setTitle] = useState('');
@@ -12,6 +13,8 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
   const [studentStats, setStudentStats] = useState([]);
   const [level, setLevel] = useState('400'); // Default to level 400
   const [showUploadForm, setShowUploadForm] = useState(initialMode === 'upload');
+  const [resetRequests, setResetRequests] = useState([]);
+  const [showQuizBuilder, setShowQuizBuilder] = useState(false);
   useEffect(() => {
     if (initialMode === 'upload') {
       setShowUploadForm(true);
@@ -78,6 +81,8 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
       });
 
       setStudentStats(Object.values(statsMap));
+      const resets = allDocs.filter(doc => doc.type === 'reset_request');
+      setResetRequests(resets);
     } catch (err) {
       console.error("Error fetching dashboard data:", err);
     }
@@ -137,7 +142,7 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
   return (
     // FORCED WHITE BACKGROUND WRAPPER
     <div style={{ 
-      backgroundColor: '#ffffff', 
+      backgroundColor: '#f4f6f8', 
       color: '#000000', 
       minHeight: '100vh', 
       width: '100%',
@@ -148,7 +153,7 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
         
         {/* SECTION 1: ANALYTICS */}
-        <h2 style={{ borderBottom: '4px solid #000', paddingBottom: '10px', color: '#000' }}>STUDENT ENGAGEMENT</h2>
+        <h2 style={{ borderBottom: '2px solid rgba(0,255,47,0.3)', paddingBottom: '10px', color: '#111', fontSize: '1rem', letterSpacing: '1.5px', fontWeight: '900' }}>STUDENT ENGAGEMENT</h2>
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(200px, 1fr))', 
@@ -164,32 +169,38 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
     <div 
       key={stat.email || stat.id} 
       style={{ 
-        border: '3px solid #000', 
-        padding: '15px', 
-        boxShadow: '5px 5px 0px #00ff2f', 
-        backgroundColor: '#fff' 
+        border: '1px solid rgba(0,0,0,0.08)', 
+        padding: '18px', 
+        borderRadius: '14px',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.07)', 
+        backgroundColor: '#fff',
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease'
       }}
     >
       {/* STUDENT NAME */}
-      <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#666' }}>STUDENT NAME</div>
-      <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#000' }}>
+      <div style={{ fontSize: '0.62rem', fontWeight: '700', color: '#999', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>Student Name</div>
+      <div style={{ fontSize: '1rem', fontWeight: '900', color: '#111', lineHeight: 1.2 }}>
         {stat.id.toUpperCase()}
       </div>
       
       {/* STUDENT LEVEL & EMAIL */}
-      <div style={{ marginTop: '5px', fontSize: '0.7rem', color: '#444' }}>
-        LEVEL: <span style={{ fontWeight: 'bold' }}>{stat.level}</span> | {stat.email}
+      <div style={{ marginTop: '8px', fontSize: '0.68rem', color: '#777', lineHeight: 1.5 }}>
+        <span style={{ fontWeight: '700', color: '#00aa1f', background: 'rgba(0,255,47,0.1)', padding: '2px 8px', borderRadius: '20px', marginRight: '6px' }}>LVL {stat.level}</span>
+        {stat.email}
       </div>
 
       {/* COMPLETION COUNT */}
-      <div style={{ marginTop: '15px', fontSize: '0.9rem', color: '#000', fontWeight: 'bold' }}>
-        MODULES COMPLETED: 
+      <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontSize: '0.62rem', fontWeight: '700', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase' }}>Modules Completed</span>
         <span style={{ 
-          marginLeft: '8px',
+          marginLeft: 'auto',
           color: '#00ff2f', 
-          backgroundColor: '#000', 
-          padding: '2px 8px',
-          borderRadius: '2px'
+          backgroundColor: '#0a0a0a', 
+          padding: '4px 12px',
+          borderRadius: '20px',
+          fontSize: '0.85rem',
+          fontWeight: '900',
+          letterSpacing: '1px'
         }}>
           {stat.completed}
         </span>
@@ -198,9 +209,16 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
   ))
 )}
         </div>
-
+    <div style={{ marginBottom: '20px', textAlign: 'right' }}>
+  <button
+    onClick={() => setShowQuizBuilder(true)}
+    style={{ padding: '12px 24px', background: '#0a0a0a', color: '#00ff2f', border: '1px solid rgba(0,255,47,0.35)', borderRadius: '10px', fontFamily: 'monospace', fontWeight: '900', cursor: 'pointer', letterSpacing: '1px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', transition: 'transform 0.1s ease' }}
+  >
+    🧪 CREATE QUIZ
+  </button>
+</div>
         {/* SECTION 2: CREATE/EDIT FORM */}
-        <form onSubmit={handleSaveCourse} style={{ backgroundColor: '#000', padding: isMobile ? '20px' : '30px', border: '4px solid #000', boxShadow: editingId ? '10px 10px 0px #ccc' : '10px 10px 0px #00ff2f', marginBottom: '50px' }}>
+        <form onSubmit={handleSaveCourse} style={{ background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)', padding: isMobile ? '20px' : '30px', borderRadius: '16px', border: '1px solid rgba(0,255,47,0.12)', boxShadow: editingId ? '0 8px 32px rgba(0,0,0,0.25), 0 0 0 2px rgba(180,180,180,0.15)' : '0 8px 32px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,255,47,0.1)', marginBottom: '50px' }}>
           <h3 style={{ color: editingId ? '#fff' : '#00ff2f', marginTop: 0 }}>
             {editingId ? '🛠️ EDITING MODULE' : '➕ CREATE NEW MODULE'}
           </h3>
@@ -227,16 +245,88 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
             <input type="file" onChange={(e) => setSelectedFile(e.target.files[0])} style={inputStyle} />
           </div>
           <textarea placeholder="CONTENT" value={content} onChange={(e) => setContent(e.target.value)} required style={{ ...inputStyle, minHeight: '100px', marginBottom: '15px' }} />
-          <button type="submit" style={{ width: '100%', padding: '15px', border: 'none', fontWeight: '900', cursor: 'pointer', backgroundColor: editingId ? '#fff' : '#00ff2f', color: '#000' }}>
+          <button type="submit" style={{ width: '100%', padding: '15px', border: 'none', borderRadius: '10px', fontWeight: '900', cursor: 'pointer', fontFamily: 'monospace', letterSpacing: '1px', backgroundColor: editingId ? '#fff' : '#00ff2f', color: '#000', marginTop: '8px', boxShadow: '0 4px 16px rgba(0,255,47,0.2)' }}>
             {editingId ? 'SAVE CHANGES' : 'PUBLISH MODULE'}
           </button>
         </form>
+       {/* SECTION: PASSWORD RESET REQUESTS */}
+{resetRequests.length > 0 && (
+  <div style={{ marginBottom: '50px' }}>
+    <h2 style={{ borderBottom: '2px solid rgba(255,68,68,0.3)', paddingBottom: '10px', color: '#111', fontSize: '1rem', letterSpacing: '1.5px', fontWeight: '900' }}>
+      🔐 PASSWORD RESET REQUESTS 
+      <span style={{ fontSize: '0.72rem', marginLeft: '10px', background: '#ff4444', color: '#fff', padding: '3px 10px', borderRadius: '20px' }}>
+        {resetRequests.filter(r => r.status === 'pending').length} PENDING
+      </span>
+    </h2>
+    <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {resetRequests.map(req => (
+        <div key={req._id} style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '16px 20px', border: '1px solid rgba(0,0,0,0.08)', backgroundColor: '#fff',
+          borderRadius: '12px',
+          borderLeft: req.status === 'pending' ? '4px solid #ff4444' : '4px solid #00ff2f',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+        }}>
+          <div>
+            <div style={{ fontWeight: '900', fontSize: '0.9rem' }}>{req.email}</div>
+            <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px' }}>
+              Requested: {new Date(req.requestedAt).toLocaleString()}
+            </div>
+            <div style={{ fontSize: '0.7rem', marginTop: '4px', fontWeight: 'bold',
+              color: req.status === 'pending' ? '#ff4444' : '#00aa00' }}>
+              STATUS: {req.status?.toUpperCase()}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {req.status === 'pending' && (
+              <button
+                style={{ ...actionBtnStyle, backgroundColor: '#00ff2f', color: '#000' }}
+onClick={async () => {
+  try {
+    // Search for user with case-insensitive email match
+const allDocs = await localDB.allDocs({ include_docs: true });
+const userDoc = allDocs.rows
+  .map(r => r.doc)
+  .find(d => d.type === 'user' && d.email?.toLowerCase() === req.email?.toLowerCase());
 
+if (!userDoc) throw new Error(`Student account not found for ${req.email}`);
+await localDB.put({ ...userDoc, resetApproved: true });
+
+    // 2. Mark request as approved
+    const reqDoc = await localDB.get(req._id);
+    await localDB.put({ ...reqDoc, status: 'approved', approvedAt: new Date().toISOString() });
+
+    alert(`✅ Reset approved for ${req.email}\n\nThe student will be prompted to set a new password on their next login.`);
+  } catch (err) {
+    alert('❌ Error: ' + err.message);
+  }
+}}
+              >
+                  APPROVE
+              </button>
+            )}
+            <button
+              style={{ ...actionBtnStyle, backgroundColor: '#ff4444' }}
+              onClick={async () => {
+                if (window.confirm('Delete this request?')) {
+                  const reqDoc = await localDB.get(req._id);
+                  await localDB.remove(reqDoc);
+                }
+              }}
+            >
+              DEL
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
         {/* SECTION 3: COURSE LIST */}
-        <h2 style={{ borderBottom: '4px solid #000', paddingBottom: '10px', color: '#000' }}>ACTIVE MODULES</h2>
+        <h2 style={{ borderBottom: '2px solid rgba(0,255,47,0.3)', paddingBottom: '10px', color: '#111', fontSize: '1rem', letterSpacing: '1.5px', fontWeight: '900' }}>ACTIVE MODULES</h2>
         <div style={{ marginTop: '20px' }}>
           {myCourses.map(course => (
-            <div key={course._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', border: '2px solid #000', marginBottom: '10px', backgroundColor: '#fff' }}>
+            <div key={course._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', border: '1px solid rgba(0,0,0,0.08)', marginBottom: '10px', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
               <div>
                 <strong style={{ color: '#000' }}>{course.title}</strong>
                 <div style={{ fontSize: '0.8rem', color: '#666' }}>{course.code} • {course._attachments ? '📎 Attached' : '📝 Text Only'}</div>
@@ -251,14 +341,21 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
                 <button onClick={async () => { if(window.confirm("Delete?")) await localDB.remove(course); }} style={{ ...actionBtnStyle, backgroundColor: '#ff4444' }}>DEL</button>
               </div>
             </div>
+            
           ))}
         </div>
       </div>
+       {showQuizBuilder && (
+        <QuizBuilder
+          courses={myCourses}
+          onClose={() => setShowQuizBuilder(false)}
+        />
+      )}
     </div>
   );
 };
 
-const inputStyle = { width: '100%', padding: '12px', background: '#111', border: '1px solid #333', color: '#fff', outline: 'none', boxSizing: 'border-box' };
-const actionBtnStyle = { background: '#000', color: '#fff', border: 'none', padding: '8px 15px', cursor: 'pointer', fontWeight: 'bold' };
+const inputStyle = { width: '100%', padding: '12px 14px', background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace' };
+const actionBtnStyle = { background: '#0a0a0a', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'monospace', transition: 'opacity 0.15s ease' };
 
 export default LecturerDashboard;

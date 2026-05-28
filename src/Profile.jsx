@@ -1,90 +1,163 @@
-import React from 'react';
+import React, { useState } from 'react';
+import localDB from './db';
+import bcrypt from 'bcryptjs';
 
 const Profile = ({ user, isLecturer, allCourses = [], completedLessons = [], selectedLevel, onLevelChange }) => {
-  // 1. We use the courses passed from App.jsx (which are already filtered by level)
-  const totalModules = allCourses.length; 
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwMessage, setPwMessage] = useState('');
+
+  const handleChangePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      setPwMessage('❌ Passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 8 || !/\d/.test(newPassword)) {
+      setPwMessage('❌ Password must be 8+ characters and include a number.');
+      return;
+    }
+    try {
+      const userId = user._id || user.id;
+      const userDoc = await localDB.get(userId);
+      const isMatch = await bcrypt.compare(currentPassword, userDoc.password);
+      if (!isMatch) {
+        setPwMessage('❌ Current password is incorrect.');
+        return;
+      }
+      const hashed = await bcrypt.hash(newPassword, 10);
+      await localDB.put({ ...userDoc, password: hashed, mustChangePassword: false });
+      setPwMessage('✅ Password changed successfully!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setPwMessage('❌ Error: ' + err.message);
+    }
+  };
+
+  const totalModules = allCourses.length;
   const lecturerManagedCount = allCourses.filter(c => c.type === "lesson").length;
-  const displayCount = isLecturer 
+  const displayCount = isLecturer
     ? lecturerManagedCount
     : allCourses.filter(course => {
-        // 1. Check all possible ID locations
         const cId = course._id || course.id;
-        
-        // 2. Check if this ID exists in the completedLessons array
-        // We also use .toString() just in case one is a number and one is a string
-        return completedLessons.some(completedId => 
-          String(completedId) === String(cId)
-        );
+        return completedLessons.some(completedId => String(completedId) === String(cId));
       }).length;
 
-  // 3. Lecturer count (matching your dashboard type)
- return (
-    <div style={{ padding: '40px', backgroundColor: '#fff', minHeight: '100vh', fontFamily: 'monospace' }}>
-      <div style={{ 
-        maxWidth: '800px', 
-        margin: '0 auto', 
-        border: '4px solid #000', 
-        padding: '30px', 
-        boxShadow: '10px 10px 0px #00ff2f' 
+  const inputStyle = {
+    width: '100%', padding: '11px 14px', marginBottom: '10px',
+    background: '#f8f8f8', border: '1px solid #e0e0e0',
+    borderRadius: '8px', color: '#111', outline: 'none',
+    boxSizing: 'border-box', fontFamily: 'monospace', fontSize: '0.85rem',
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+  };
+
+  return (
+    <div style={{
+      padding: '24px',
+      backgroundColor: '#f4f6f8',
+      minHeight: '100vh',
+      fontFamily: 'monospace',
+    }}>
+      <div style={{
+        maxWidth: '760px',
+        margin: '0 auto',
       }}>
-        <h1 style={{ 
-          fontWeight: '900', 
-          borderBottom: '4px solid #000', 
-          paddingBottom: '10px',
-          letterSpacing: '-1px'
+
+        {/* ── Header Banner ── */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)',
+          borderRadius: '16px',
+          padding: '28px',
+          marginBottom: '20px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,255,47,0.1)',
         }}>
-          {isLecturer ? 'FACULTY DASHBOARD' : 'STUDENT DOSSIER'}
-        </h1>
-        
-        <div style={{ marginTop: '30px', lineHeight: '1.8' }}>
-          <p style={{ fontSize: '1.2rem', margin: '5px 0' }}>
-            <strong style={{ backgroundColor: '#000', color: '#00ff2f', padding: '2px 8px' }}>NAME:</strong> {user?.name?.toUpperCase() || "N/A"}
-          </p>
-          <p style={{ fontSize: '1.2rem', margin: '5px 0' }}>
-            <strong style={{ backgroundColor: '#000', color: '#00ff2f', padding: '2px 8px' }}>ROLE:</strong> {isLecturer ? 'LECTURER' : 'UNIVERSITY STUDENT'}
-          </p>
-          <p style={{ fontSize: '1.2rem', margin: '5px 0' }}>
-            <strong style={{ backgroundColor: '#000', color: '#00ff2f', padding: '2px 8px' }}>ID:</strong> {user?.id || "UB-2026-OFFLINE"}
-          </p>
+          <h1 style={{
+            margin: '0 0 20px 0',
+            color: '#00ff2f',
+            fontWeight: '900',
+            fontSize: '1.3rem',
+            letterSpacing: '-0.5px',
+          }}>
+            {isLecturer ? 'FACULTY DASHBOARD' : 'STUDENT DOSSIER'}
+          </h1>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {[
+              { label: 'NAME', value: user?.name?.toUpperCase() || 'N/A' },
+              { label: 'ROLE', value: isLecturer ? 'LECTURER' : 'UNIVERSITY STUDENT' },
+              { label: 'ID', value: user?.id || 'UB-2026-OFFLINE' },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{
+                  fontSize: '0.62rem', fontWeight: '700', letterSpacing: '1.5px',
+                  color: '#00ff2f', background: 'rgba(0,255,47,0.1)',
+                  border: '1px solid rgba(0,255,47,0.2)',
+                  borderRadius: '6px', padding: '3px 10px', minWidth: '50px',
+                  textAlign: 'center',
+                }}>{label}</span>
+                <span style={{ color: '#ccc', fontSize: '0.95rem', fontWeight: '600' }}>{value}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: '1fr 1fr', 
-          gap: '20px', 
-          marginTop: '40px' 
+        {/* ── Stats Cards ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '16px',
+          marginBottom: '20px',
         }}>
-          <div style={{ 
-            padding: '30px', 
-            background: '#000', 
-            color: '#00ff2f', 
+          <div style={{
+            background: 'linear-gradient(135deg, #0a0a0a, #1a1a1a)',
+            borderRadius: '14px',
+            padding: '24px',
             textAlign: 'center',
-            border: '4px solid #000'
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,255,47,0.1)',
           }}>
-            <h2 style={{ margin: 0, fontSize: '3rem' }}>{totalModules}</h2>
-            <p style={{ margin: 0, fontWeight: 'bold', fontSize: '0.8rem' }}>TOTAL MODULES IN SYSTEM</p>
+            <h2 style={{ margin: '0 0 6px', fontSize: '3rem', color: '#00ff2f', fontWeight: '900', lineHeight: 1 }}>
+              {totalModules}
+            </h2>
+            <p style={{ margin: 0, fontWeight: '700', fontSize: '0.72rem', color: '#666', letterSpacing: '1px' }}>
+              TOTAL MODULES IN SYSTEM
+            </p>
           </div>
 
-          <div style={{ 
-            padding: '30px', 
-            border: '4px solid #000', 
+          <div style={{
+            background: '#fff',
+            borderRadius: '14px',
+            padding: '24px',
             textAlign: 'center',
-            backgroundColor: isLecturer ? '#f0f0f0' : '#fff'
+            boxShadow: '0 4px 20px rgba(0,255,47,0.08)',
+            border: '1px solid rgba(0,255,47,0.15)',
           }}>
-            <h2 style={{ margin: 0, fontSize: '3rem' }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: '3rem', color: '#00aa1f', fontWeight: '900', lineHeight: 1 }}>
               {displayCount}
             </h2>
-            <p style={{ margin: 0, fontWeight: 'bold', fontSize: '0.8rem' }}>
+            <p style={{ margin: 0, fontWeight: '700', fontSize: '0.72rem', color: '#888', letterSpacing: '1px' }}>
               {isLecturer ? 'MODULES YOU PUBLISHED' : 'YOUR COMPLETED LESSONS'}
             </p>
           </div>
         </div>
+
+        {/* ── Level Switcher ── */}
         {!isLecturer && (
-          <div style={{ marginTop: '30px', padding: '20px', border: '3px solid #000', boxShadow: '6px 6px 0px #00ff2f' }}>
-            <p style={{ fontWeight: '900', marginBottom: '15px', fontSize: '0.9rem' }}>
-              CURRENT LEVEL: <span style={{ background: '#000', color: '#00ff2f', padding: '2px 10px' }}>LEVEL {selectedLevel}</span>
+          <div style={{
+            background: '#fff',
+            borderRadius: '14px',
+            padding: '24px',
+            marginBottom: '16px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+            border: '1px solid #e8e8e8',
+          }}>
+            <p style={{ fontWeight: '900', marginBottom: '6px', fontSize: '0.85rem', color: '#111' }}>
+              ACADEMIC LEVEL
             </p>
-            <p style={{ fontSize: '0.75rem', color: '#666', marginBottom: '15px' }}>SWITCH ACADEMIC LEVEL:</p>
+            <p style={{ fontSize: '0.72rem', color: '#aaa', marginBottom: '16px', letterSpacing: '0.5px' }}>
+              Currently on <strong style={{ color: '#00aa1f' }}>Level {selectedLevel}</strong> — switch below
+            </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               {['200', '300', '400'].map(lvl => (
                 <button
@@ -92,12 +165,14 @@ const Profile = ({ user, isLecturer, allCourses = [], completedLessons = [], sel
                   onClick={() => onLevelChange(lvl)}
                   style={{
                     flex: 1, padding: '12px',
-                    background: selectedLevel === lvl ? '#000' : '#fff',
-                    color: selectedLevel === lvl ? '#00ff2f' : '#000',
-                    border: '3px solid #000',
+                    background: selectedLevel === lvl ? '#111' : '#f5f5f5',
+                    color: selectedLevel === lvl ? '#00ff2f' : '#555',
+                    border: `1px solid ${selectedLevel === lvl ? '#111' : '#e0e0e0'}`,
+                    borderRadius: '8px',
                     fontWeight: '900', cursor: 'pointer',
-                    fontFamily: 'monospace',
-                    boxShadow: selectedLevel === lvl ? '4px 4px 0px #00ff2f' : '4px 4px 0px #000'
+                    fontFamily: 'monospace', fontSize: '0.85rem',
+                    boxShadow: selectedLevel === lvl ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+                    transition: 'all 0.15s ease',
                   }}
                 >
                   {lvl}
@@ -106,15 +181,84 @@ const Profile = ({ user, isLecturer, allCourses = [], completedLessons = [], sel
             </div>
           </div>
         )}
-        <div style={{ 
-          marginTop: '40px', 
-          padding: '15px', 
-          border: '2px dashed #000', 
-          fontSize: '0.9rem',
-          textAlign: 'center'
+
+        {/* ── Change Password ── */}
+        {!isLecturer && (
+          <div style={{
+            background: '#fff',
+            borderRadius: '14px',
+            padding: '24px',
+            marginBottom: '16px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+            border: '1px solid #e8e8e8',
+          }}>
+            <p style={{ fontWeight: '900', marginBottom: '16px', fontSize: '0.85rem', color: '#111' }}>
+              🔐 CHANGE PASSWORD
+            </p>
+            <input
+              type="password"
+              placeholder="Current password"
+              value={currentPassword}
+              onChange={e => setCurrentPassword(e.target.value)}
+              style={inputStyle}
+            />
+            <input
+              type="password"
+              placeholder="New password"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+              style={inputStyle}
+            />
+            <input
+              type="password"
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+              style={inputStyle}
+            />
+            {pwMessage && (
+              <p style={{
+                fontSize: '0.75rem', marginBottom: '10px',
+                color: pwMessage.includes('✅') ? '#00aa00' : '#ee4444',
+                background: pwMessage.includes('✅') ? 'rgba(0,170,0,0.06)' : 'rgba(238,68,68,0.06)',
+                padding: '8px 12px', borderRadius: '6px',
+              }}>
+                {pwMessage}
+              </p>
+            )}
+            <button
+              onClick={handleChangePassword}
+              style={{
+                width: '100%', padding: '12px',
+                background: '#111', color: '#00ff2f',
+                border: 'none', borderRadius: '8px',
+                fontWeight: '900', cursor: 'pointer',
+                fontFamily: 'monospace', letterSpacing: '1.5px',
+                fontSize: '0.85rem',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                transition: 'background 0.15s ease',
+              }}
+              onMouseEnter={e => e.target.style.background = '#222'}
+              onMouseLeave={e => e.target.style.background = '#111'}
+            >
+              UPDATE PASSWORD
+            </button>
+          </div>
+        )}
+
+        {/* ── System Status ── */}
+        <div style={{
+          padding: '14px 20px',
+          background: 'rgba(0,255,47,0.06)',
+          border: '1px solid rgba(0,255,47,0.15)',
+          borderRadius: '10px',
+          fontSize: '0.78rem',
+          textAlign: 'center',
+          color: '#555',
         }}>
-          SYSTEM STATUS: <strong>OFFLINE-READY (POUCHDB ACTIVE)</strong>
+          SYSTEM STATUS: <strong style={{ color: '#00aa1f' }}>OFFLINE-READY (POUCHDB ACTIVE)</strong>
         </div>
+
       </div>
     </div>
   );

@@ -340,54 +340,6 @@ function LandingPage({ onEnter }) {
         </div>
       </section>
 
-      {/* ── MARQUEE ── */}
-      <div style={{
-        borderTop: '1px solid #1a1a1a', borderBottom: '1px solid #1a1a1a',
-        padding: '14px 0', overflow: 'hidden', background: '#050505',
-      }}>
-        <div className="marquee-track" style={{ display: 'flex', gap: '0', whiteSpace: 'nowrap' }}>
-          {[...marqueeItems, ...marqueeItems].map((item, i) => (
-            <span key={i} style={{
-              fontSize: '0.7rem', letterSpacing: '3px', padding: '0 30px',
-              color: i % 2 === 0 ? '#333' : '#00ff2f', fontWeight: '700',
-            }}>
-              {item} ◆
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* ── STATS ── */}
-      <section style={{ padding: '80px 40px', borderBottom: '1px solid #1a1a1a' }}>
-        <div style={{
-          maxWidth: '900px', margin: '0 auto',
-          gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
-           gap: '0',
-        }}>
-          {stats.map(({ value, label }, i) => (
-            <div
-              key={i}
-              className="stat-item"
-              style={{
-                padding: '40px 30px', textAlign: 'center',
-                borderRight: !isMobile && i < stats.length - 1 ? '1px solid #1a1a1a' : 'none',
-                 borderBottom: '1px solid #1a1a1a',
-                borderTop: '1px solid #1a1a1a',
-                borderLeft: i === 0 ? '1px solid #1a1a1a' : 'none',
-              }}
-            >
-              <div style={{
-              fontSize: '2rem',
-              fontWeight: '900', color: '#00ff2f',
-              fontFamily: "'Syne', sans-serif", lineHeight: 1,
-              marginBottom: '8px',
-                 }}>{value}</div>
-              <div style={{ fontSize: '0.6rem', color: '#555', letterSpacing: '2px' }}>{label}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* ── FEATURES ── */}
       <section style={{padding: isMobile ? '40px 20px' : '80px 40px', maxWidth: '1100px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '60px' }}>

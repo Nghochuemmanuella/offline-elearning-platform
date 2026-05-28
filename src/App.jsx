@@ -9,7 +9,7 @@ import Profile from './Profile';
 import AITutor from './AITutor';
 import StudentDashboard from './StudentDashboard';
 import LandingPage from './LandingPage';
-
+import ResetPasswordScreen from './ResetPasswordScreen';
 const COURSE_CONTENT = []
 
 const LESSON_MATERIALS = {
@@ -37,26 +37,34 @@ function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const isLecturer = user?.name?.toLowerCase().includes('admin') || user?.email?.includes('lecturer');
   const [selectedLevel, setSelectedLevel] = useState(user?.level || null);
-
- const fetchAllCourses = useCallback(async (currentUserId) => {
+  const [hasNewModules, setHasNewModules] = useState(false);
+  const fetchAllCourses = useCallback(async (currentUserId) => {
     try {
-      // 1. Fetch all documents from the local PouchDB
       const result = await localDB.allDocs({ include_docs: true, attachments: true });
       
-      // 2. Extract lessons (Modules)
       const fetched = result.rows
         .filter(row => row.doc.type === 'lesson')
         .map(row => ({ ...row.doc, id: row.doc._id }));
       setDynamicLessons(fetched);
 
+      // Check for new modules since last visit
+     const lastSeen = localStorage.getItem('lastSeenModuleCount');
+const currentCount = fetched.length;
+if (lastSeen && parseInt(lastSeen) < currentCount) {
+  setHasNewModules(true);
+} 
+
       // 3. Extract persistent progress for the logged-in student
       if (currentUserId) {
-       const progress = [...new Set(result.rows
+      const progress = [...new Set(result.rows
   .filter(row => 
     row.doc.type === 'progress' && 
-    (row.doc.userId === currentUserId || row.id.includes(currentUserId))
+    row.doc.status === 'complete' &&
+    (row.doc.userId === currentUserId || 
+     row.id.includes(currentUserId) ||
+     row.id.startsWith(`progress_${currentUserId}`))
   )
-  .map(row => row.doc.lessonId))]; 
+  .map(row => row.doc.lessonId))];
 
         console.log("Successfully restored progress from DB:", progress);
         setCompletedLessons(progress);
@@ -72,9 +80,9 @@ function App() {
 
     // 2. Fetch courses and progress using the most reliable ID
     // PouchDB usually uses _id. If that's missing, we fall back to id.
-    const activeId = user?.email || user?._id || user?.id ;
+    const activeId = user?.email;
     if (activeId) {
-      fetchAllCourses(user.email || activeId);
+      fetchAllCourses(activeId);
     }
 
     // 3. Handle Screen Resize
@@ -98,6 +106,7 @@ useEffect(() => {
   };
 }, []);
 
+
   const handleLogin = async (userData) => {
     // 1. ADMIN BYPASS (Hardcoded for you to always have access)
     if (userData.email === "admin@edubridge.com" && userData.password === "Admin1234") {
@@ -108,9 +117,9 @@ useEffect(() => {
         email: userData.email,
         level: '400' 
       };
-      setUser(adminObj);
-      localStorage.setItem('edubridge_user', JSON.stringify(adminObj));
-      setView('lecturer');
+  setUser(adminObj);
+  localStorage.setItem('edubridge_user', JSON.stringify(adminObj));
+  setView('lecturer');
       startSync();
       resolveConflicts();
 
@@ -141,10 +150,14 @@ const foundUser = await Promise.all(
         setSelectedLevel(userObj.level || null);
         
         // Decide where to send them
-        const isAdmin = userObj.role === 'lecturer' || userObj.name?.toLowerCase().includes('admin');
-        setView(isAdmin ? 'lecturer' : 'student');
-        startSync();
-        resolveConflicts();
+      const isAdmin = userObj.role === 'lecturer' || userObj.name?.toLowerCase().includes('admin');
+if (!isAdmin && userObj.resetApproved) {
+  setView('resetPassword');
+} else {
+  setView(isAdmin ? 'lecturer' : 'student');
+}
+startSync();
+resolveConflicts();
       } else {
         // If nothing matches
         alert("❌ Invalid Email or Password. Please try again.");
@@ -198,29 +211,33 @@ const foundUser = await Promise.all(
     }
   };
 
-const handleComplete = async (lessonId) => {
+ 
+ const handleComplete = async (lessonId) => {
   if (!user) return;
-  
-  const activeId = user._id || user.id; 
-  
-  if (!activeId) {
-    console.error("Cannot save progress: No User ID found");
-    return;
-  }
+  console.log('🔵 handleComplete called:', lessonId, 'user:', user.email);
 
   try {
-    // 1. SAVE DIRECTLY TO POUCHDB
-    // We use a unique ID and explicit 'type' so the Lecturer can filter it
-    await localDB.put({
+    const progressId = `progress_${user.email}_${lessonId}`;
+    let existingDoc = null;
+    try {
+      existingDoc = await localDB.get(progressId);
+    } catch (e) {
+      // Doc doesn't exist yet, that's fine
+    }
+
+    const putDoc = {
       _id: progressId,
-      _rev: existingDoc?._rev,
       type: 'progress',
       userId: user.email,
       lessonId: lessonId,
       status: 'complete',
       completedAt: new Date().toISOString()
-});
-    
+    };
+    if (existingDoc) putDoc._rev = existingDoc._rev;
+
+    await localDB.put(putDoc);
+    console.log('✅ Progress saved:', progressId);
+
     // 2. UPDATE LOCAL UI STATE
     setCompletedLessons(prev => {
       if (prev.includes(lessonId)) return prev;
@@ -229,17 +246,12 @@ const handleComplete = async (lessonId) => {
 
     // 3. CLOSE MODAL
     setSelectedCourse(null);
-    
-    console.log(`✅ Progress for ${lessonId} saved for Lecturer visibility.`);
-    
-    // 4. REFRESH DATA (Optional but helpful)
-    if (typeof fetchAllCourses === 'function') {
-      fetchAllCourses(activeId);
-    }
+
+    // 4. REFRESH DATA
+    fetchAllCourses(user.email);
 
   } catch (err) {
     console.error("❌ Persistence Error:", err);
-    // Fallback: update UI even if DB fails
     setCompletedLessons(prev => [...prev, lessonId]);
     setSelectedCourse(null);
   }
@@ -263,11 +275,22 @@ const handleComplete = async (lessonId) => {
   const completionPercent = levelSpecificCourses.length > 0 
     ? Math.round((completedLessons.length / levelSpecificCourses.length) * 100) 
     : 0;
-
+  useEffect(() => {
+  if (view === 'student') {
+    localStorage.setItem('lastSeenModuleCount', levelSpecificCourses.length);
+    setHasNewModules(false);
+  }
+}, [view, levelSpecificCourses.length]);
   // --- END OF CORRECTED BLOCK ---
-  if (showLanding) return <LandingPage onEnter={() => setShowLanding(false)} />;
+ 
+ if (showLanding) return <LandingPage onEnter={() => setShowLanding(false)} />;
 if (!user) return <Auth onLogin={handleLogin} />;
-  // If logged in as student but no level is selected yet
+if (user && view === 'resetPassword') return <ResetPasswordScreen user={user} onDone={(updatedUser) => {
+  setUser(updatedUser);
+  localStorage.setItem('edubridge_user', JSON.stringify(updatedUser));
+  setView('student');
+}} />;
+ // If logged in as student but no level is selected yet
 if (user && !isLecturer && !selectedLevel) {
   return (
     <div style={{ 
@@ -300,7 +323,7 @@ if (user && !isLecturer && !selectedLevel) {
 }
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f9f9f9', fontFamily: 'monospace' }}>
-      <Sidebar isOpen={isSidebarOpen} user={user} onNavigate={setView} onLogout={handleLogout} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+      <Sidebar isOpen={isSidebarOpen} user={user} onNavigate={setView} onLogout={handleLogout} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}  hasNewModules={hasNewModules}/>
 
       <div style={{ flex: 1, marginLeft: isSidebarOpen && !isMobile ? '280px' : '0', transition: '0.3s' }}>
         <nav style={{ background: '#000', color: '#00ff2f', padding: '15px', display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #00ff2f', position: 'sticky', top: 0, zIndex: 100 }}>
@@ -320,34 +343,35 @@ if (user && !isLecturer && !selectedLevel) {
           </nav>
 
       {/* --- UPDATED NAVIGATION LOGIC --- */}
-{view === 'lecturer' || view === 'upload'? (
+{/* --- UPDATED NAVIGATION LOGIC --- */}
+{view === 'lecturer' || view === 'upload' ? (
   <LecturerDashboard isMobile={isMobile} user={user}
-  initialMode={view === 'upload' ? 'upload' : 'view'} />
+    initialMode={view === 'upload' ? 'upload' : 'view'} />
 ) : view === 'profile' ? (
-   <Profile user={user} 
-   isLecturer={isLecturer}
-   allCourses={levelSpecificCourses}  
-   completedLessons={completedLessons}
-   selectedLevel={selectedLevel}
-   onLevelChange={saveLevel}/>
+  <Profile user={user} 
+    isLecturer={isLecturer}
+    allCourses={levelSpecificCourses}  
+    completedLessons={completedLessons}
+    selectedLevel={selectedLevel}
+    onLevelChange={saveLevel}/>
 ) : view === 'ai' ? (
   <div style={{ padding: '20px' }}><AITutor /></div>
 ) : (
   <StudentDashboard
-            user={user}
-            selectedLevel={selectedLevel}
-            isOnline={isOnline}
-            completionPercent={completionPercent}
-            levelSpecificCourses={levelSpecificCourses}
-            completedLessons={completedLessons}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            selectedCourse={selectedCourse}
-            setSelectedCourse={setSelectedCourse}
-            handleComplete={handleComplete}
-            LESSON_MATERIALS={LESSON_MATERIALS}
-          />
-        )}
+    user={user}
+    selectedLevel={selectedLevel}
+    isOnline={isOnline}
+    completionPercent={completionPercent}
+    levelSpecificCourses={levelSpecificCourses}
+    completedLessons={completedLessons}
+    searchTerm={searchTerm}
+    setSearchTerm={setSearchTerm}
+    selectedCourse={selectedCourse}
+    setSelectedCourse={setSelectedCourse}
+    handleComplete={handleComplete}
+    LESSON_MATERIALS={LESSON_MATERIALS}
+  />
+)}
       </div>
     </div>
   );
