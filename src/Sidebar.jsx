@@ -11,7 +11,6 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout,  hasNewMod
     { name: '📊 Admin Dashboard', id: 'lecturer' },
     { name: '🤖 Offline AI Assistant', id: 'ai' },
     { name: '👤 Faculty Profile', id: 'profile' },
-    { name: '📤 Quick Upload', id: 'upload' },
     { name: ' LOGOUT', id: 'logout' },
   ] : [
     { name: '🏠 Student Home', id: 'student', badge: true },

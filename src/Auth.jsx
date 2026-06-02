@@ -10,7 +10,9 @@ const Auth = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
   const handleSubmit = (e) => {
+
     e.preventDefault();
+
     // For now, we just simulate a successful login
     // Later, we will connect this to your database
     onLogin({ email: email, password: password });
@@ -18,6 +20,11 @@ const Auth = ({ onLogin }) => {
 
   const handleRegister = async (e) => {
   e.preventDefault();
+
+  if (email === 'admin@edubridge.com') {
+    alert("This email is reserved. Please use a different email.");
+    return;
+  }
   
   // Basic validation rules
   if (password.length < 8 || !/\d/.test(password)) {
@@ -176,6 +183,17 @@ const Auth = ({ onLogin }) => {
             {isLogin ? 'SIGN UP' : 'LOGIN'}
           </span>
         </p>
+        {!isLogin && (
+  <p style={{ 
+    fontSize: '0.7rem', 
+    color: '#555', 
+    marginTop: '10px',
+    textAlign: 'center',
+    letterSpacing: '1px'
+  }}>
+    LECTURER? CONTACT YOUR ADMIN FOR ACCESS.
+  </p>
+)}
       </div>
     </div>
   );

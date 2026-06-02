@@ -23,11 +23,29 @@ const LESSON_MATERIALS = {
 
 function App() {
   const [showLanding, setShowLanding] = useState(true); 
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('edubridge_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [user, setUser] = useState(null);
   const [view, setView] = useState('student');
+  useEffect(() => {
+  const validateSession = async () => {
+    const saved = localStorage.getItem('edubridge_user');
+    if (!saved) return;
+    const parsed = JSON.parse(saved);
+    // Admin session is always valid
+    if (parsed.email === 'admin@edubridge.com') {
+      setUser(parsed);
+      return;
+    }
+    // Verify the user still exists in PouchDB
+    try {
+      const doc = await localDB.get(`user_${parsed.email}`);
+      if (doc) setUser(parsed);
+    } catch (err) {
+      // User not found — clear stale session
+      localStorage.removeItem('edubridge_user');
+    }
+  };
+  validateSession();
+}, []);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [completedLessons, setCompletedLessons] = useState([]);
   const [dynamicLessons, setDynamicLessons] = useState([]);
@@ -35,7 +53,7 @@ function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const isLecturer = user?.name?.toLowerCase().includes('admin') || user?.email?.includes('lecturer');
+  const isLecturer = user?.role === 'lecturer' || user?.email === 'admin@edubridge.com';
   const [selectedLevel, setSelectedLevel] = useState(user?.level || null);
   const [hasNewModules, setHasNewModules] = useState(false);
   const fetchAllCourses = useCallback(async (currentUserId) => {
@@ -283,7 +301,13 @@ resolveConflicts();
 }, [view, levelSpecificCourses.length]);
   // --- END OF CORRECTED BLOCK ---
  
- if (showLanding) return <LandingPage onEnter={() => setShowLanding(false)} />;
+ if (showLanding) return (
+  <LandingPage 
+    onLogin={() => setShowLanding(false)} 
+    onGetStarted={() => setShowLanding(false)} 
+  />
+);
+
 if (!user) return <Auth onLogin={handleLogin} />;
 if (user && view === 'resetPassword') return <ResetPasswordScreen user={user} onDone={(updatedUser) => {
   setUser(updatedUser);

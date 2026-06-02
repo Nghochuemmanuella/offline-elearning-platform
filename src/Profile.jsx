@@ -35,15 +35,19 @@ const Profile = ({ user, isLecturer, allCourses = [], completedLessons = [], sel
       setPwMessage('❌ Error: ' + err.message);
     }
   };
-
   const totalModules = allCourses.length;
-  const lecturerManagedCount = allCourses.filter(c => c.type === "lesson").length;
-  const displayCount = isLecturer
-    ? lecturerManagedCount
-    : allCourses.filter(course => {
-        const cId = course._id || course.id;
-        return completedLessons.some(completedId => String(completedId) === String(cId));
-      }).length;
+
+const lecturerManagedCount = allCourses.filter(c => 
+  c.type === "lesson" && 
+  c.createdBy === user?.email
+).length;
+
+const displayCount = isLecturer
+  ? lecturerManagedCount
+  : allCourses.filter(course => {
+      const cId = course._id || course.id;
+      return completedLessons.some(completedId => String(completedId) === String(cId));
+    }).length;
 
   const inputStyle = {
     width: '100%', padding: '11px 14px', marginBottom: '10px',
@@ -141,111 +145,25 @@ const Profile = ({ user, isLecturer, allCourses = [], completedLessons = [], sel
             </p>
           </div>
         </div>
-
-        {/* ── Level Switcher ── */}
-        {!isLecturer && (
-          <div style={{
-            background: '#fff',
-            borderRadius: '14px',
-            padding: '24px',
-            marginBottom: '16px',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-            border: '1px solid #e8e8e8',
-          }}>
-            <p style={{ fontWeight: '900', marginBottom: '6px', fontSize: '0.85rem', color: '#111' }}>
-              ACADEMIC LEVEL
-            </p>
-            <p style={{ fontSize: '0.72rem', color: '#aaa', marginBottom: '16px', letterSpacing: '0.5px' }}>
-              Currently on <strong style={{ color: '#00aa1f' }}>Level {selectedLevel}</strong> — switch below
-            </p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              {['200', '300', '400'].map(lvl => (
-                <button
-                  key={lvl}
-                  onClick={() => onLevelChange(lvl)}
-                  style={{
-                    flex: 1, padding: '12px',
-                    background: selectedLevel === lvl ? '#111' : '#f5f5f5',
-                    color: selectedLevel === lvl ? '#00ff2f' : '#555',
-                    border: `1px solid ${selectedLevel === lvl ? '#111' : '#e0e0e0'}`,
-                    borderRadius: '8px',
-                    fontWeight: '900', cursor: 'pointer',
-                    fontFamily: 'monospace', fontSize: '0.85rem',
-                    boxShadow: selectedLevel === lvl ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {lvl}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Change Password ── */}
-        {!isLecturer && (
-          <div style={{
-            background: '#fff',
-            borderRadius: '14px',
-            padding: '24px',
-            marginBottom: '16px',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-            border: '1px solid #e8e8e8',
-          }}>
-            <p style={{ fontWeight: '900', marginBottom: '16px', fontSize: '0.85rem', color: '#111' }}>
-              🔐 CHANGE PASSWORD
-            </p>
-            <input
-              type="password"
-              placeholder="Current password"
-              value={currentPassword}
-              onChange={e => setCurrentPassword(e.target.value)}
-              style={inputStyle}
-            />
-            <input
-              type="password"
-              placeholder="New password"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              style={inputStyle}
-            />
-            <input
-              type="password"
-              placeholder="Confirm new password"
-              value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
-              style={inputStyle}
-            />
-            {pwMessage && (
-              <p style={{
-                fontSize: '0.75rem', marginBottom: '10px',
-                color: pwMessage.includes('✅') ? '#00aa00' : '#ee4444',
-                background: pwMessage.includes('✅') ? 'rgba(0,170,0,0.06)' : 'rgba(238,68,68,0.06)',
-                padding: '8px 12px', borderRadius: '6px',
-              }}>
-                {pwMessage}
-              </p>
-            )}
-            <button
-              onClick={handleChangePassword}
-              style={{
-                width: '100%', padding: '12px',
-                background: '#111', color: '#00ff2f',
-                border: 'none', borderRadius: '8px',
-                fontWeight: '900', cursor: 'pointer',
-                fontFamily: 'monospace', letterSpacing: '1.5px',
-                fontSize: '0.85rem',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                transition: 'background 0.15s ease',
-              }}
-              onMouseEnter={e => e.target.style.background = '#222'}
-              onMouseLeave={e => e.target.style.background = '#111'}
-            >
-              UPDATE PASSWORD
-            </button>
-          </div>
-        )}
-
+     {!isLecturer && (
+  <div style={{
+    background: '#fff',
+    borderRadius: '14px',
+    padding: '24px',
+    marginBottom: '16px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+    border: '1px solid #e8e8e8',
+  }}>
+    <p style={{ fontWeight: '900', marginBottom: '6px', fontSize: '0.85rem', color: '#111' }}>
+      ACADEMIC LEVEL
+    </p>
+    <p style={{ fontSize: '0.72rem', color: '#aaa', marginBottom: '0', letterSpacing: '0.5px' }}>
+      You are enrolled at{' '}
+      <strong style={{ color: '#00aa1f', fontSize: '0.9rem' }}>Level {selectedLevel}</strong>.
+      Contact your administrator if your level is incorrect.
+    </p>
+  </div>
+)}
         {/* ── System Status ── */}
         <div style={{
           padding: '14px 20px',

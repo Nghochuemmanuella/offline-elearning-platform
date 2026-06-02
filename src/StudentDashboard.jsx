@@ -531,7 +531,14 @@ function StudentDashboard({
             <h1 style={S.bannerTitle}>
               {user?.name?.toUpperCase() || 'STUDENT'}
             </h1>
-            <p style={S.bannerSub}>Welcome back! You have {pendingCount} module{pendingCount !== 1 ? 's' : ''} pending.</p>
+    <p style={S.bannerSub}>
+  {completedLessons.length === 0 && levelSpecificCourses.length > 0
+    ? `👋 Welcome to EduBridge! You have ${pendingCount} module${pendingCount !== 1 ? 's' : ''} ready to explore.`
+    : completedLessons.length === levelSpecificCourses.length && levelSpecificCourses.length > 0
+    ? `🎉 Amazing! You have completed all modules for Level ${selectedLevel}!`
+    : `👋 Welcome back! You have ${pendingCount} module${pendingCount !== 1 ? 's' : ''} pending.`
+  }
+</p>      
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
             <span style={S.levelBadge}>LEVEL {selectedLevel}</span>

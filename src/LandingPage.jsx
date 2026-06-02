@@ -108,7 +108,7 @@ const LANDING_STYLES = `
 `;
 
 // ─── COMPONENT ────────────────────────────────────────────────────────────────
-function LandingPage({ onEnter }) {
+function LandingPage({  onLogin, onGetStarted }) {
   const [typedText, setTypedText] = useState('');
   const [showCursor, setShowCursor] = useState(true);
   const [currentPhrase, setCurrentPhrase] = useState(0);
@@ -229,32 +229,33 @@ function LandingPage({ onEnter }) {
          <img src="/logo192.png" alt="EduBridge" style={{ height: '45px', width: 'auto' }} />
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button
-            className="land-btn-secondary"
-            onClick={onEnter}
-            style={{
-              padding: '10px 20px', background: 'transparent',
-              color: '#fff', border: '2px solid #333',
-              fontFamily: "'Space Mono', monospace", fontWeight: '700',
-              fontSize: '0.75rem', letterSpacing: '1px', cursor: 'pointer',
-              boxShadow: '4px 4px 0px #333',
-            }}
-          >
-            LOGIN
-          </button>
-          <button
-            className="land-btn-primary"
-            onClick={onEnter}
-            style={{
-              padding: '10px 20px', background: '#00ff2f',
-              color: '#000', border: '2px solid #00ff2f',
-              fontFamily: "'Space Mono', monospace", fontWeight: '900',
-              fontSize: '0.75rem', letterSpacing: '1px', cursor: 'pointer',
-             
-            }}
-          >
-            GET STARTED →
-          </button>
+      <button
+  className="land-btn-secondary"
+  onClick={onLogin}
+  style={{
+    padding: '10px 20px', background: 'transparent',
+    color: '#fff', border: '2px solid #333',
+    fontFamily: "'Space Mono', monospace", fontWeight: '700',
+    fontSize: '0.75rem', letterSpacing: '1px', cursor: 'pointer',
+    boxShadow: '4px 4px 0px #333',
+    borderRadius: '10px',
+  }}
+>
+  LOGIN
+</button>
+<button
+  className="land-btn-primary"
+  onClick={onGetStarted}
+  style={{
+    padding: '10px 20px', background: '#00ff2f',
+    color: '#000', border: '2px solid #00ff2f',
+    fontFamily: "'Space Mono', monospace", fontWeight: '900',
+    fontSize: '0.75rem', letterSpacing: '1px', cursor: 'pointer',
+    borderRadius: '10px',
+  }}
+>
+  GET STARTED →
+</button>
         </div>
       </nav>
 
@@ -448,7 +449,7 @@ function LandingPage({ onEnter }) {
         </div>
         <button
   className="land-btn-primary"
-  onClick={onEnter}
+  onClick={onGetStarted}
   style={{
     padding: '14px 40px', background: '#00ff2f',
     color: '#000', border: '3px solid #00ff2f',

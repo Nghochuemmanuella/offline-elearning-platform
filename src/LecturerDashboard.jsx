@@ -15,6 +15,10 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
   const [showUploadForm, setShowUploadForm] = useState(initialMode === 'upload');
   const [resetRequests, setResetRequests] = useState([]);
   const [showQuizBuilder, setShowQuizBuilder] = useState(false);
+  const [showCreateLecturer, setShowCreateLecturer] = useState(false);
+  const [lecturerName, setLecturerName] = useState('');
+  const [lecturerEmail, setLecturerEmail] = useState('');
+  const [lecturerPassword, setLecturerPassword] = useState('');
   useEffect(() => {
     if (initialMode === 'upload') {
       setShowUploadForm(true);
@@ -28,15 +32,35 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
       const allDocs = result.rows.map(row => row.doc);
       
       // 1. Get all modules (lessons)
-      const courses = allDocs.filter(doc => doc.type === 'lesson');
+    const courses = allDocs.filter(doc => 
+  doc.type === 'lesson' && 
+  (user?.email === 'admin@edubridge.com' || doc.createdBy === user?.email)
+);
       setMyCourses(courses);
 
       // 2. Get all students who have registered
-      const students = allDocs.filter(doc => doc.type === 'user' && doc.role === 'student');
+   const lecturerCourseIds = allDocs
+  .filter(doc => 
+    doc.type === 'lesson' && 
+    (user?.email === 'admin@edubridge.com' || doc.createdBy === user?.email)
+  )
+  .map(doc => doc._id);
 
+const relevantProgress = allDocs.filter(doc => 
+  (doc.type === 'progress' || (doc._id && doc._id.startsWith('progress_'))) &&
+  lecturerCourseIds.includes(doc.lessonId)
+);
+
+const relevantStudentEmails = [...new Set(relevantProgress.map(doc => doc.userId))];
+
+const students = allDocs.filter(doc => 
+  doc.type === 'user' && 
+  doc.role === 'student' && 
+  doc.email !== 'admin@edubridge.com' &&
+  (user?.email === 'admin@edubridge.com' || relevantStudentEmails.includes(doc.email))
+);
       // 3. Get all progress/completion records
-      const progressDocs = allDocs.filter(doc => doc.type === 'progress' || (doc._id && doc._id.startsWith('progress_'))
-    || (doc._id && doc._id.includes('completion')));
+    const progressDocs = relevantProgress;
     console.log("Found Progress Docs:", progressDocs.length, progressDocs);
 
       
@@ -125,6 +149,7 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
         title, code, content, level, // <--- ADDED LEVEL HERE
         credits: parseInt(credits) || 0,
         createdAt: new Date().toISOString(),
+        createdBy: user?.email,
         _attachments: attachmentObj
       });
       alert("✅ Module Published!");
@@ -151,7 +176,113 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
       boxSizing: 'border-box'
     }}>
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-        
+        {/* SECTION 0: CREATE LECTURER ACCOUNT */}
+{user?.email === 'admin@edubridge.com' && <div style={{ marginBottom: '40px' }}>
+  <h2 style={{ 
+    borderBottom: '2px solid rgba(0,255,47,0.3)', 
+    paddingBottom: '10px', color: '#111', 
+    fontSize: '1rem', letterSpacing: '1.5px', 
+    fontWeight: '900', marginBottom: '20px' 
+  }}>
+    👨‍🏫 LECTURER MANAGEMENT
+  </h2>
+  <button
+    onClick={() => setShowCreateLecturer(!showCreateLecturer)}
+    style={{ 
+      padding: '12px 24px', background: '#0a0a0a', 
+      color: '#00ff2f', border: '1px solid rgba(0,255,47,0.35)', 
+      borderRadius: '10px', fontFamily: 'monospace', fontWeight: '900', 
+      cursor: 'pointer', letterSpacing: '1px', 
+      marginBottom: '20px'
+    }}
+  >
+    {showCreateLecturer ? '✕ CANCEL' : '➕ CREATE LECTURER ACCOUNT'}
+  </button>
+
+  {showCreateLecturer && (
+    <div style={{ 
+      background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)', 
+      padding: '24px', borderRadius: '16px', 
+      border: '1px solid rgba(0,255,47,0.12)',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.25)'
+    }}>
+      <h3 style={{ color: '#00ff2f', marginTop: 0, marginBottom: '20px' }}>
+        NEW LECTURER ACCOUNT
+      </h3>
+      <input
+        placeholder="FULL NAME"
+        value={lecturerName}
+        onChange={(e) => setLecturerName(e.target.value)}
+        style={{ ...inputStyle, marginBottom: '12px' }}
+      />
+      <input
+        type="email"
+        placeholder="EMAIL ADDRESS"
+        value={lecturerEmail}
+        onChange={(e) => setLecturerEmail(e.target.value)}
+        style={{ ...inputStyle, marginBottom: '12px' }}
+      />
+      <input
+        type="password"
+        placeholder="TEMPORARY PASSWORD"
+        value={lecturerPassword}
+        onChange={(e) => setLecturerPassword(e.target.value)}
+        style={{ ...inputStyle, marginBottom: '20px' }}
+      />
+      <button
+        onClick={async () => {
+          if (!lecturerName || !lecturerEmail || !lecturerPassword) {
+            alert("Please fill in all fields.");
+            return;
+          }
+          if (lecturerPassword.length < 8 || !/\d/.test(lecturerPassword)) {
+            alert("Password must be 8+ characters and include a number.");
+            return;
+          }
+          try {
+            // Check if email already exists
+            const allDocs = await localDB.allDocs({ include_docs: true });
+            const exists = allDocs.rows.find(r => 
+              r.doc.type === 'user' && 
+              r.doc.email?.toLowerCase() === lecturerEmail.toLowerCase()
+            );
+            if (exists) {
+              alert("A user with this email already exists.");
+              return;
+            }
+            const bcrypt = await import('bcryptjs');
+            const hashedPassword = await bcrypt.hash(lecturerPassword, 10);
+            await localDB.put({
+              _id: `user_${lecturerEmail}`,
+              type: 'user',
+              name: lecturerName,
+              email: lecturerEmail,
+              password: hashedPassword,
+              role: 'lecturer',
+              createdAt: new Date().toISOString()
+            });
+            alert(`✅ Lecturer account created for ${lecturerName}.\nEmail: ${lecturerEmail}\nPassword: ${lecturerPassword}\n\nShare these credentials with the lecturer.`);
+            setLecturerName('');
+            setLecturerEmail('');
+            setLecturerPassword('');
+            setShowCreateLecturer(false);
+          } catch (err) {
+            alert("❌ Error: " + err.message);
+          }
+        }}
+        style={{ 
+          width: '100%', padding: '15px', border: 'none', 
+          borderRadius: '10px', fontWeight: '900', cursor: 'pointer', 
+          fontFamily: 'monospace', letterSpacing: '1px', 
+          backgroundColor: '#00ff2f', color: '#000',
+          boxShadow: '0 4px 16px rgba(0,255,47,0.2)'
+        }}
+      >
+        CREATE LECTURER ACCOUNT
+      </button>
+    </div>
+  )}
+</div>}
         {/* SECTION 1: ANALYTICS */}
         <h2 style={{ borderBottom: '2px solid rgba(0,255,47,0.3)', paddingBottom: '10px', color: '#111', fontSize: '1rem', letterSpacing: '1.5px', fontWeight: '900' }}>STUDENT ENGAGEMENT</h2>
         <div style={{ 
