@@ -10,6 +10,10 @@ import AITutor from './AITutor';
 import StudentDashboard from './StudentDashboard';
 import LandingPage from './LandingPage';
 import ResetPasswordScreen from './ResetPasswordScreen';
+import Messages from './Messages';
+import LecturerInbox from './LecturerInbox';
+import { ToastProvider, useToast, useConfirm } from './Toast';
+import QuizResults from './QuizResults';
 const COURSE_CONTENT = []
 
 const LESSON_MATERIALS = {
@@ -21,7 +25,9 @@ const LESSON_MATERIALS = {
   6: "Client-Server: This module covers the Bridge you just built between PouchDB and CouchDB!"
 };
 
-function App() {
+function AppInner() {
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   const [showLanding, setShowLanding] = useState(true); 
   const [user, setUser] = useState(null);
   const [view, setView] = useState('student');
@@ -52,6 +58,7 @@ function App() {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [syncStatus, setSyncStatus] = useState('offline');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const isLecturer = user?.role === 'lecturer' || user?.email === 'admin@edubridge.com';
   const [selectedLevel, setSelectedLevel] = useState(user?.level || null);
@@ -66,12 +73,14 @@ function App() {
       setDynamicLessons(fetched);
 
       // Check for new modules since last visit
-     const lastSeen = localStorage.getItem('lastSeenModuleCount');
-const currentCount = fetched.length;
+const lastSeen = localStorage.getItem(`lastSeenModuleCount_${currentUserId}`);
+const levelModules = fetched.filter(m => m.level === selectedLevel);
+const currentCount = levelModules.length;
 if (lastSeen && parseInt(lastSeen) < currentCount) {
   setHasNewModules(true);
-} 
-
+} else {
+  setHasNewModules(false);
+}  
       // 3. Extract persistent progress for the logged-in student
       if (currentUserId) {
       const progress = [...new Set(result.rows
@@ -138,7 +147,7 @@ useEffect(() => {
   setUser(adminObj);
   localStorage.setItem('edubridge_user', JSON.stringify(adminObj));
   setView('lecturer');
-      startSync();
+      startSync(setSyncStatus);
       resolveConflicts();
 
       return;
@@ -174,16 +183,14 @@ if (!isAdmin && userObj.resetApproved) {
 } else {
   setView(isAdmin ? 'lecturer' : 'student');
 }
-startSync();
+startSync(setSyncStatus);
 resolveConflicts();
       } else {
         // If nothing matches
-        alert("❌ Invalid Email or Password. Please try again.");
-      }
+      showToast('Invalid email or password. Please try again.', 'error');}
     } catch (err) {
       console.error("Login Database Error:", err);
-      alert("⚠️ Offline Database Error. Please refresh.");
-    }
+    showToast('Offline database error. Please refresh.', 'warning');}
   };
    
 
@@ -222,12 +229,13 @@ resolveConflicts();
       setSelectedLevel(level);
     }
   };
-  const handleLogout = () => {
-    if (window.confirm("Exit EduBridge?")) {
-      localStorage.removeItem('edubridge_user');
-      window.location.reload();
-    }
-  };
+ const handleLogout = async () => {
+  const yes = await showConfirm('Exit EduBridge?', { confirm: 'EXIT', cancel: 'STAY', danger: false });
+  if (yes) {
+    localStorage.removeItem('edubridge_user');
+    window.location.reload();
+  }
+};
 
  
  const handleComplete = async (lessonId) => {
@@ -290,15 +298,22 @@ resolveConflicts();
 
   // 3. Calculate percentage based ONLY on modules for the current level
   // This ensures 1/1 = 100% instead of 1/3 = 33%
-  const completionPercent = levelSpecificCourses.length > 0 
-    ? Math.round((completedLessons.length / levelSpecificCourses.length) * 100) 
-    : 0;
-  useEffect(() => {
-  if (view === 'student') {
-    localStorage.setItem('lastSeenModuleCount', levelSpecificCourses.length);
+  const levelCompletedLessons = completedLessons.filter(lessonId =>
+  levelSpecificCourses.some(course => 
+    String(course._id) === String(lessonId) || 
+    String(course.id) === String(lessonId)
+  )
+);
+
+const completionPercent = levelSpecificCourses.length > 0 
+  ? Math.round((levelCompletedLessons.length / levelSpecificCourses.length) * 100) 
+  : 0;
+ useEffect(() => {
+  if (view === 'student' && user?.email) {
+    localStorage.setItem(`lastSeenModuleCount_${user.email}`, levelSpecificCourses.length);
     setHasNewModules(false);
   }
-}, [view, levelSpecificCourses.length]);
+}, [view, levelSpecificCourses.length, user?.email]);
   // --- END OF CORRECTED BLOCK ---
  
  if (showLanding) return (
@@ -353,16 +368,29 @@ if (user && !isLecturer && !selectedLevel) {
         <nav style={{ background: '#000', color: '#00ff2f', padding: '15px', display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #00ff2f', position: 'sticky', top: 0, zIndex: 100 }}>
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{ background: 'none', border: 'none', color: '#00ff2f', fontSize: '20px', cursor: 'pointer' }}>☰</button>
           <span style={{ fontWeight: '900' }}>EDUBRIDGE</span>
-         <span style={{ 
+
+<span style={{ 
   fontSize: '0.6rem', 
-  padding: '2px 5px',
-  border: isOnline ? '1px solid #00ff2f' : '1px solid #ff4444', 
-  backgroundColor: isOnline ? 'transparent' : '#ff4444',
-  color: isOnline ? '#00ff2f' : '#fff',
+  padding: '4px 10px',
+  borderRadius: '20px',
+  border: !isOnline ? '1px solid #ff4444'
+        : syncStatus === 'synced' ? '1px solid #00ff2f' 
+        : syncStatus === 'syncing' ? '1px solid #ffcc00'
+        : '1px solid #00ff2f', 
+  backgroundColor: !isOnline ? 'rgba(255,68,68,0.1)'
+                 : syncStatus === 'syncing' ? 'rgba(255,204,0,0.1)'
+                 : 'transparent',
+  color: !isOnline ? '#ff4444'
+       : syncStatus === 'syncing' ? '#ffcc00'
+       : '#00ff2f',
   whiteSpace: 'nowrap',
   flexShrink: 0,
+  fontWeight: '700',
+  letterSpacing: '0.5px',
 }}>
-  {isOnline ? 'ON' : 'OFF'}
+  {!isOnline ? '🔴 OFFLINE' 
+   : syncStatus === 'syncing' ? '🟡 SYNCING...' 
+   : '🟢 ONLINE'}
 </span>
           </nav>
 
@@ -380,6 +408,13 @@ if (user && !isLecturer && !selectedLevel) {
     onLevelChange={saveLevel}/>
 ) : view === 'ai' ? (
   <div style={{ padding: '20px' }}><AITutor /></div>
+) : view === 'messages' ? (
+  <Messages user={user} />
+
+) : view === 'inbox' ? (
+  <LecturerInbox user={user} />
+) : view === 'results' ? (
+  <QuizResults user={user} />
 ) : (
   <StudentDashboard
     user={user}
@@ -398,6 +433,13 @@ if (user && !isLecturer && !selectedLevel) {
 )}
       </div>
     </div>
+  );
+}
+function App() {
+  return (
+    <ToastProvider>
+      <AppInner />
+    </ToastProvider>
   );
 }
 

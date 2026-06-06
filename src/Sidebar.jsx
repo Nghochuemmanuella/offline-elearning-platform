@@ -1,19 +1,54 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import localDB from './db';
 
-const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout,  hasNewModules }) => {
-  
-  // 1. Identify if user is Lecturer/Admin
+const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout, hasNewModules }) => {
+
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
   const isLecturer = user?.role === 'lecturer' || 
                      user?.name?.toLowerCase().includes('admin') || 
                      user?.email?.includes('lecturer');
 
+  useEffect(() => {
+    if (!user?.email) return;
+    const fetchUnread = async () => {
+      try {
+        const result = await localDB.allDocs({ include_docs: true });
+        const docs = result.rows.map(r => r.doc);
+        let count = 0;
+        if (isLecturer) {
+          count = docs.filter(d =>
+            d.type === 'message' &&
+            d.toEmail === user.email &&
+            !d.readByLecturer
+          ).length;
+        } else {
+          count = docs.filter(d =>
+            d.type === 'message' &&
+            d.fromEmail === user.email &&
+            d.replies?.length > 0 &&
+            !d.readByStudent
+          ).length;
+        }
+        setUnreadMessages(count);
+      } catch (err) { }
+    };
+    fetchUnread();
+    const listener = localDB.changes({ since: 'now', live: true, include_docs: true })
+      .on('change', fetchUnread);
+    return () => listener.cancel();
+  }, [user, isLecturer]);
+  
   const menuItems = isLecturer ? [
     { name: '📊 Admin Dashboard', id: 'lecturer' },
+      { name: '📬 Inbox', id: 'inbox', msgBadge: true },
     { name: '🤖 Offline AI Assistant', id: 'ai' },
     { name: '👤 Faculty Profile', id: 'profile' },
     { name: ' LOGOUT', id: 'logout' },
   ] : [
     { name: '🏠 Student Home', id: 'student', badge: true },
+    { name: '📬 My Messages', id: 'messages', msgBadge: true },
+    { name: '🏆 My Results', id: 'results' },
     { name: '🤖 Offline AI Assistant', id: 'ai' },
     { name: '🏆 Academic Profile', id: 'profile' },
     { name: ' Logout', id: 'logout' },
@@ -113,6 +148,14 @@ const Sidebar = ({ isOpen, toggleSidebar, user, onNavigate, onLogout,  hasNewMod
       display: 'inline-block', flexShrink: 0,
     }} />
   )}
+  {item.msgBadge && unreadMessages > 0 && (
+  <span style={{
+    background: '#ff4444', color: '#fff',
+    borderRadius: '20px', padding: '2px 8px',
+    fontSize: '0.6rem', fontWeight: '900',
+    flexShrink: 0,
+  }}>{unreadMessages}</span>
+)}
     </div>
   );
 })}  

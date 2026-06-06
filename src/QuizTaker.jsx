@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import localDB from './db';
+import { useToast } from './Toast';
 
 const QuizTaker = ({ course, user, onClose, onComplete }) => {
+  const { showToast } = useToast();
   const [quiz, setQuiz] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentQ, setCurrentQ] = useState(0);
@@ -11,7 +13,7 @@ const QuizTaker = ({ course, user, onClose, onComplete }) => {
   const [passed, setPassed] = useState(false);
   const [alreadyTaken, setAlreadyTaken] = useState(false);
   const [previousResult, setPreviousResult] = useState(null);
-
+  const [reviewing, setReviewing] = useState(false);
   useEffect(() => {
     const loadQuiz = async () => {
       try {
@@ -42,8 +44,7 @@ const QuizTaker = ({ course, user, onClose, onComplete }) => {
 
   const handleSubmit = async () => {
     if (Object.keys(answers).length < quiz.questions.length) {
-      alert('Please answer all questions before submitting.');
-      return;
+      showToast('Please answer all questions before submitting.', 'warning'); return;
     }
 
     // Calculate score
@@ -258,7 +259,69 @@ const QuizTaker = ({ course, user, onClose, onComplete }) => {
       </div>
     </div>
   );
+ // Review screen
+if (reviewing) return (
+  <div style={S.overlay}>
+    <div style={S.modal}>
+      <div style={S.header}>
+        <div>
+          <div style={{ fontSize: '0.65rem', opacity: 0.7, letterSpacing: '1px' }}>{course.title}</div>
+          <div style={{ fontWeight: '900' }}>REVIEW YOUR ANSWERS</div>
+        </div>
+        <button onClick={onClose} style={S.btn('#ff4444')}>✕</button>
+      </div>
+      <div style={S.body}>
+        <p style={{ fontSize: '0.75rem', color: '#888', marginBottom: '20px', letterSpacing: '0.5px' }}>
+          Check your answers below. Click any question to go back and change it.
+        </p>
 
+        {quiz.questions.map((q, i) => (
+          <div
+            key={i}
+            onClick={() => { setCurrentQ(i); setReviewing(false); }}
+            style={{
+              marginBottom: '14px', padding: '14px 16px',
+              border: answers[i] !== undefined ? '1px solid rgba(0,255,47,0.25)' : '1px solid #ff444440',
+              borderLeft: answers[i] !== undefined ? '4px solid #00ff2f' : '4px solid #ff4444',
+              borderRadius: '10px', cursor: 'pointer',
+              background: answers[i] !== undefined ? 'rgba(0,255,47,0.03)' : 'rgba(255,68,68,0.03)',
+            }}
+          >
+            <div style={{ fontWeight: '900', fontSize: '0.82rem', color: '#111', marginBottom: '6px' }}>
+              Q{i + 1}: {q.question}
+            </div>
+            <div style={{ fontSize: '0.78rem', color: answers[i] !== undefined ? '#00aa1f' : '#ff4444', fontWeight: '700' }}>
+              {answers[i] !== undefined
+                ? `Your answer: ${['A','B','C','D'][answers[i]]}. ${q.options[answers[i]]}`
+                : '⚠ Not answered yet — click to answer'}
+            </div>
+          </div>
+        ))}
+
+        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+          <button
+            onClick={() => setReviewing(false)}
+            style={{ ...S.btn('#333'), flex: 1 }}
+          >
+            ← BACK TO QUIZ
+          </button>
+          <button
+            onClick={() => {
+              if (Object.keys(answers).length < quiz.questions.length) {
+                showToast('Please answer all questions before submitting.', 'warning'); return;
+              }
+              setReviewing(false);
+              handleSubmit();
+            }}
+            style={{ ...S.btn('#00ff2f'), flex: 1 }}
+          >
+            SUBMIT QUIZ ✓
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
   // Quiz taking screen
   const question = quiz.questions[currentQ];
   const totalQ = quiz.questions.length;
@@ -311,8 +374,7 @@ const QuizTaker = ({ course, user, onClose, onComplete }) => {
               <button
                 onClick={() => {
                   if (answers[currentQ] === undefined) {
-                    alert('Please select an answer before continuing.');
-                    return;
+                   showToast('Please select an answer before continuing.', 'warning'); return;
                   }
                   setCurrentQ(prev => prev + 1);
                 }}
@@ -320,11 +382,19 @@ const QuizTaker = ({ course, user, onClose, onComplete }) => {
               >
                 NEXT →
               </button>
-            ) : (
-              <button onClick={handleSubmit} style={{ ...S.btn('#00ff2f'), flex: 1 }}>
-                SUBMIT QUIZ ✓
-              </button>
-            )}
+          ) : (
+  <button
+    onClick={() => {
+      if (answers[currentQ] === undefined) {
+        showToast('Please select an answer before continuing.', 'warning'); return;
+      }
+      setReviewing(true);
+    }}
+    style={{ ...S.btn('#00ff2f'), flex: 1 }}
+  >
+    REVIEW ANSWERS →
+  </button>
+)} 
           </div>
         </div>
       </div>

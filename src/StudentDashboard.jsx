@@ -1,6 +1,8 @@
 import React, { useState, useEffect} from 'react';
 import localDB from './db';
 import QuizTaker from './QuizTaker';
+import { ComposeMessage } from './Messages';
+
 
 const ANIMATIONS = `
   @keyframes fadeSlideUp {
@@ -494,6 +496,14 @@ function StudentDashboard({
   const [toast, setToast] = useState(null);
   const [mounted, setMounted] = useState(false);
   const [quizCourse, setQuizCourse] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [messageCourse, setMessageCourse] = useState(null);
+useEffect(() => {
+  if (levelSpecificCourses.length >= 0) {
+    const timer = setTimeout(() => setIsLoading(false), 800);
+    return () => clearTimeout(timer);
+  }
+}, [levelSpecificCourses]);
 
   useEffect(() => {
     const existing = document.getElementById('edu-animations');
@@ -510,9 +520,11 @@ function StudentDashboard({
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
-
-  const completedCount = levelSpecificCourses.filter(c => completedLessons.includes(c.id)).length;
-  const pendingCount = levelSpecificCourses.length - completedCount;
+ const completedCount = levelSpecificCourses.filter(c => 
+  completedLessons.includes(c.id) || 
+  completedLessons.includes(c._id)
+).length;
+ const pendingCount = levelSpecificCourses.length - completedCount;
 
   const displayedCourses = levelSpecificCourses.filter(course => {
     const isDone = completedLessons.includes(course.id);
@@ -613,106 +625,150 @@ function StudentDashboard({
           style={S.searchInput}
         />
       </div>
-
-      {/* ── Module Grid ── */}
-      <div style={S.grid}>
-        {displayedCourses.length === 0 ? (
-          <div style={S.empty}>
-            <div style={S.emptyTitle}>
-              {searchTerm ? `No results for "${searchTerm}"` : 'No modules here yet'}
-            </div>
-            <p style={S.emptySub}>
-              {searchTerm
-                ? 'Try a different search term or clear the filter.'
-                : filter === 'done'
-                  ? "You haven't completed any modules yet. Start one below!"
-                  : "Your lecturer hasn't uploaded modules for this level yet."}
-            </p>
-            {searchTerm && (
-              <button
-                className="edu-btn"
-                onClick={() => setSearchTerm('')}
-                style={{ ...S.cardBtn(false), width: 'auto', padding: '10px 20px', marginTop: '16px', display: 'inline-block', borderRadius: '8px' }}
-              >
-                CLEAR SEARCH
-              </button>
-            )}
+     {/* ── Module Grid ── */}
+<div style={S.grid}>
+  {isLoading ? (
+    // Skeleton loading cards
+    [...Array(6)].map((_, i) => (
+      <div key={i} style={{
+        background: '#fff',
+        border: '1px solid #e8e8e8',
+        borderRadius: '12px',
+        overflow: 'hidden',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+        animation: 'pulse 1.5s ease-in-out infinite',
+      }}>
+        {/* Skeleton header */}
+        <div style={{
+          background: '#e8e8e8',
+          height: '38px',
+          width: '100%',
+        }} />
+        {/* Skeleton body */}
+        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ background: '#f0f0f0', height: '10px', borderRadius: '6px', width: '40%' }} />
+          <div style={{ background: '#f0f0f0', height: '16px', borderRadius: '6px', width: '85%' }} />
+          <div style={{ background: '#f0f0f0', height: '16px', borderRadius: '6px', width: '65%' }} />
+          <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+            <div style={{ background: '#f0f0f0', height: '20px', borderRadius: '20px', width: '70px' }} />
+            <div style={{ background: '#f0f0f0', height: '20px', borderRadius: '20px', width: '50px' }} />
           </div>
-        ) : (
-          displayedCourses.map((course, index) => {
-            const isDone = completedLessons.includes(course.id);
-            const hasAttachments = course._attachments && Object.keys(course._attachments).length > 0;
-
-            return (
-              <div
-                key={course.id}
-                className="edu-card"
-                style={{
-                  ...S.card(isDone),
-                  animation: `fadeSlideUp 0.35s ease ${index * 0.06}s both`,
-                }}
-                onMouseEnter={() => setHovered(course.id)}
-                onMouseLeave={() => setHovered(null)}
-              >
-                {/* Card Header Strip */}
-                <div style={S.cardHeader(isDone)}>
-                  <span>{isDone ? '✓ COMPLETED' : '◎ PENDING'}</span>
-                  <span>LVL {course.level || selectedLevel}</span>
-                </div>
-
-                {/* Card Body */}
-                <div style={S.cardBody}>
-                  {course.code && <div style={S.cardCode}>{course.code}</div>}
-                  <h3 style={S.cardTitle}>{course.title}</h3>
-
-                  {/* Meta Tags */}
-                  <div style={S.cardMeta}>
-                    {hasAttachments && (
-                      <span style={S.metaTag('green')}>
-                        📎 {Object.keys(course._attachments).length} FILE{Object.keys(course._attachments).length > 1 ? 'S' : ''}
-                      </span>
-                    )}
-                    {course.content && (
-                      <>
-                        <span style={S.metaTag()}>CONTENT</span>
-                        <span style={S.metaTag()}>
-                          ~{Math.ceil(course.content.split(' ').length / 200)} MIN READ
-                        </span>
-                      </>
-                    )}
-                    <span style={S.metaTag()}>OFFLINE READY</span>
-                    {(() => {
-                      const accessed = JSON.parse(localStorage.getItem('lastAccessed') || '{}');
-                      const time = accessed[course.id];
-                      if (!time) return null;
-                      const date = new Date(time);
-                      const now = new Date();
-                      const diffHrs = Math.floor((now - date) / 3600000);
-                      const label = diffHrs < 1 ? 'Just now' : diffHrs < 24 ? `${diffHrs}h ago` : `${Math.floor(diffHrs / 24)}d ago`;
-                      return <span style={S.metaTag()}>🕒 {label}</span>;
-                    })()}
-                  </div>
-                </div>
-
-                {/* Action Button */}
-                <button
-                  className="edu-btn"
-                  onClick={() => {
-                    setSelectedCourse(course);
-                    const accessed = JSON.parse(localStorage.getItem('lastAccessed') || '{}');
-                    accessed[course.id] = new Date().toISOString();
-                    localStorage.setItem('lastAccessed', JSON.stringify(accessed));
-                  }}
-                  style={S.cardBtn(isDone)}
-                >
-                  {isDone ? '↩ RE-VISIT MODULE' : '→ START NOW'}
-                </button>
-              </div>
-            );
-          })
-        )}
+        </div>
+        {/* Skeleton button */}
+        <div style={{ background: '#f0f0f0', height: '44px', width: '100%' }} />
       </div>
+    ))
+  ) : displayedCourses.length === 0 ? (
+    <div style={S.empty}>
+      <div style={S.emptyTitle}>
+        {searchTerm ? `No results for "${searchTerm}"` : 'No modules here yet'}
+      </div>
+      <p style={S.emptySub}>
+        {searchTerm
+          ? 'Try a different search term or clear the filter.'
+          : filter === 'done'
+            ? "You haven't completed any modules yet. Start one below!"
+            : "Your lecturer hasn't uploaded modules for this level yet."}
+      </p>
+      
+      {searchTerm && (
+        
+        <button
+          className="edu-btn"
+          onClick={() => setSearchTerm('')}
+          style={{ ...S.cardBtn(false), width: 'auto', padding: '10px 20px', marginTop: '16px', display: 'inline-block', borderRadius: '8px' }}
+        >
+          CLEAR SEARCH
+        </button>
+      )}
+    </div>
+  ) : (
+    displayedCourses.map((course, index) => {
+      const isDone = completedLessons.includes(course.id);
+      const hasAttachments = course._attachments && Object.keys(course._attachments).length > 0;
 
+      return (
+        <div
+          key={course.id}
+          className="edu-card"
+          style={{
+            ...S.card(isDone),
+            animation: `fadeSlideUp 0.35s ease ${index * 0.06}s both`,
+          }}
+          onMouseEnter={() => setHovered(course.id)}
+          onMouseLeave={() => setHovered(null)}
+        >
+          {/* Card Header Strip */}
+          <div style={S.cardHeader(isDone)}>
+            <span>{isDone ? '✓ COMPLETED' : '◎ PENDING'}</span>
+            <span>LVL {course.level || selectedLevel}</span>
+          </div>
+
+          {/* Card Body */}
+          <div style={S.cardBody}>
+            {course.code && <div style={S.cardCode}>{course.code}</div>}
+            <h3 style={S.cardTitle}>{course.title}</h3>
+
+            {/* Meta Tags */}
+            <div style={S.cardMeta}>
+              {hasAttachments && (
+                <span style={S.metaTag('green')}>
+                  📎 {Object.keys(course._attachments).length} FILE{Object.keys(course._attachments).length > 1 ? 'S' : ''}
+                </span>
+              )}
+              {course.content && (
+                <>
+                  <span style={S.metaTag()}>CONTENT</span>
+                  <span style={S.metaTag()}>
+                    ~{Math.ceil(course.content.split(' ').length / 200)} MIN READ
+                  </span>
+                </>
+              )}
+              <span style={S.metaTag()}>OFFLINE READY</span>
+              {(() => {
+                const accessed = JSON.parse(localStorage.getItem('lastAccessed') || '{}');
+                const time = accessed[course.id];
+                if (!time) return null;
+                const date = new Date(time);
+                const now = new Date();
+                const diffHrs = Math.floor((now - date) / 3600000);
+                const label = diffHrs < 1 ? 'Just now' : diffHrs < 24 ? `${diffHrs}h ago` : `${Math.floor(diffHrs / 24)}d ago`;
+                return <span style={S.metaTag()}>🕒 {label}</span>;
+              })()}
+            </div>
+          </div>
+<button
+  className="edu-btn"
+  onClick={() => setMessageCourse(course)}
+  style={{
+    width: '100%', padding: '10px',
+    background: '#f0fff4', color: '#00aa1f',
+    border: '1px solid rgba(0,255,47,0.2)',
+    borderTop: '1px solid rgba(0,255,47,0.1)',
+    fontFamily: 'monospace', fontWeight: '700',
+    fontSize: '0.75rem', letterSpacing: '1px', cursor: 'pointer',
+  }}
+>
+  📩 MESSAGE LECTURER
+</button>
+          {/* Action Button */}
+          <button
+            className="edu-btn"
+            onClick={() => {
+              setSelectedCourse(course);
+              const accessed = JSON.parse(localStorage.getItem('lastAccessed') || '{}');
+              accessed[course.id] = new Date().toISOString();
+              localStorage.setItem('lastAccessed', JSON.stringify(accessed));
+            }}
+            style={S.cardBtn(isDone)}
+          >
+            {isDone ? '↩ RE-VISIT MODULE' : '→ START NOW'}
+          </button>
+        </div>
+      );
+    })
+  )}
+</div>
       {/* ── Lesson Modal ── */}
       {selectedCourse && (
         <div style={S.overlay} onClick={(e) => { if (e.target === e.currentTarget) setSelectedCourse(null); }}>
@@ -841,6 +897,15 @@ function StudentDashboard({
           }}
         />
       )}
+{messageCourse && (
+  <ComposeMessage
+    course={messageCourse}
+    user={user}
+    lecturerEmail={messageCourse.createdBy}
+    onClose={() => setMessageCourse(null)}
+    onSent={() => setMessageCourse(null)}
+  />
+)}
     </main>
   );
 }

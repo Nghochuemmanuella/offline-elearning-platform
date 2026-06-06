@@ -3,10 +3,11 @@ import localDB from './db';
 import bcrypt from 'bcryptjs';
 
 const Profile = ({ user, isLecturer, allCourses = [], completedLessons = [], selectedLevel, onLevelChange }) => {
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [pwMessage, setPwMessage] = useState('');
+const [currentPassword, setCurrentPassword] = useState('');
+const [newPassword, setNewPassword] = useState('');
+const [confirmPassword, setConfirmPassword] = useState('');
+const [pwMessage, setPwMessage] = useState('');
+  
 
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
@@ -35,7 +36,8 @@ const Profile = ({ user, isLecturer, allCourses = [], completedLessons = [], sel
       setPwMessage('❌ Error: ' + err.message);
     }
   };
-  const totalModules = allCourses.length;
+
+const totalModules = allCourses.length;
 
 const lecturerManagedCount = allCourses.filter(c => 
   c.type === "lesson" && 
@@ -162,6 +164,74 @@ const displayCount = isLecturer
       <strong style={{ color: '#00aa1f', fontSize: '0.9rem' }}>Level {selectedLevel}</strong>.
       Contact your administrator if your level is incorrect.
     </p>
+  </div>
+)}
+
+{/* ── Change Password — Lecturer Only ── */}
+{isLecturer && (
+  <div style={{
+    background: '#fff',
+    borderRadius: '14px',
+    padding: '24px',
+    marginBottom: '16px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+    border: '1px solid #e8e8e8',
+  }}>
+    <p style={{ fontWeight: '900', marginBottom: '6px', fontSize: '0.85rem', color: '#111' }}>
+      🔐 CHANGE PASSWORD
+    </p>
+    <p style={{ 
+      fontSize: '0.72rem', color: '#aaa', 
+      marginBottom: '16px', letterSpacing: '0.5px',
+      lineHeight: 1.6
+    }}>
+      Update your temporary password below.
+    </p>
+    <input
+      type="password"
+      placeholder="Current password"
+      value={currentPassword}
+      onChange={e => setCurrentPassword(e.target.value)}
+      style={inputStyle}
+    />
+    <input
+      type="password"
+      placeholder="New password"
+      value={newPassword}
+      onChange={e => setNewPassword(e.target.value)}
+      style={inputStyle}
+    />
+    <input
+      type="password"
+      placeholder="Confirm new password"
+      value={confirmPassword}
+      onChange={e => setConfirmPassword(e.target.value)}
+      style={inputStyle}
+    />
+    {pwMessage && (
+      <p style={{
+        fontSize: '0.75rem', marginBottom: '10px',
+        color: pwMessage.includes('✅') ? '#00aa00' : '#ee4444',
+        background: pwMessage.includes('✅') ? 'rgba(0,170,0,0.06)' : 'rgba(238,68,68,0.06)',
+        padding: '8px 12px', borderRadius: '6px',
+      }}>
+        {pwMessage}
+      </p>
+    )}
+    <button
+      onClick={handleChangePassword}
+      style={{
+        width: '100%', padding: '12px',
+        background: '#111', color: '#00ff2f',
+        border: 'none', borderRadius: '8px',
+        fontWeight: '900', cursor: 'pointer',
+        fontFamily: 'monospace', letterSpacing: '1.5px',
+        fontSize: '0.85rem',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      }}
+    >
+      UPDATE PASSWORD
+    </button>
   </div>
 )}
         {/* ── System Status ── */}

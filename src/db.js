@@ -6,41 +6,41 @@ const localDB = new PouchDB('elearning_db');
 // 2. Remote Database URL
 // Note: We use the string directly in the sync function to avoid ReferenceErrors
 const remoteDBURL = import.meta.env.VITE_COUCHDB_URL;
-  export const startSync = () => {
+ export const startSync = (onStatusChange) => {
   if (!remoteDBURL) {
     console.warn("⚠️ No remote DB URL configured. Running in local-only mode.");
+    if (onStatusChange) onStatusChange('offline');
     return;
   }
-  console.log("🚀 EduBridge Sync Engine: Initializing...");
 
   const syncHandler = localDB.sync(remoteDBURL, {
-    live: true,   // Keeps the connection open
-    retry: true,  // Automatically reconnects when Bamenda network returns
+    live: true,
+    retry: true,
     continuous: true
   })
   .on('change', (info) => {
-    console.log("🔄 DATA UPDATE: New modules or progress received!", info);
+    if (onStatusChange) onStatusChange('syncing');
     resolveConflicts();
   })
   .on('paused', (err) => {
     if (err) {
-      console.log("📡 OFFLINE: Local changes will be queued.");
+      if (onStatusChange) onStatusChange('offline');
     } else {
-      console.log("☁️ SYNCED: All data is currently up to date.");
+      if (onStatusChange) onStatusChange('synced');
     }
   })
   .on('active', () => {
-    console.log("⚡ ONLINE: Syncing local changes to campus server...");
+    if (onStatusChange) onStatusChange('syncing');
   })
   .on('denied', (err) => {
-    console.error("🚫 PERMISSION DENIED: Check CouchDB credentials.", err);
+    if (onStatusChange) onStatusChange('offline');
   })
   .on('error', (err) => {
-    console.error("❌ CRITICAL SYNC ERROR:", err);
+    if (onStatusChange) onStatusChange('offline');
   });
 
   return syncHandler;
-};
+}; 
 
 export const saveProgress = async (lessonId, status, userId) => {
   try {

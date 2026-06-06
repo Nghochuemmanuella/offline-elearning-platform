@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import localDB from './db';
 import QuizBuilder from './QuizBuilder';
-
+import { useToast, useConfirm } from './Toast';
 const LecturerDashboard = ({ isMobile, user, initialMode }) => {
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   const [title, setTitle] = useState('');
   const [code, setCode] = useState('');
   const [credits, setCredits] = useState('');
@@ -12,18 +14,18 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [studentStats, setStudentStats] = useState([]);
   const [level, setLevel] = useState('400'); // Default to level 400
-  const [showUploadForm, setShowUploadForm] = useState(initialMode === 'upload');
   const [resetRequests, setResetRequests] = useState([]);
   const [showQuizBuilder, setShowQuizBuilder] = useState(false);
   const [showCreateLecturer, setShowCreateLecturer] = useState(false);
   const [lecturerName, setLecturerName] = useState('');
   const [lecturerEmail, setLecturerEmail] = useState('');
   const [lecturerPassword, setLecturerPassword] = useState('');
+  const [myQuizzes, setMyQuizzes] = useState([]);
+  const [quizResultsModal, setQuizResultsModal] = useState(null);
   useEffect(() => {
-    if (initialMode === 'upload') {
-      setShowUploadForm(true);
-      window.scrollTo({ top: 400, behavior: 'smooth' });
-    }
+  if (initialMode === 'upload') {
+  window.scrollTo({ top: 400, behavior: 'smooth' });
+}
   }, [initialMode]);
  
   const fetchDashboardData = async () => {
@@ -37,6 +39,11 @@ const LecturerDashboard = ({ isMobile, user, initialMode }) => {
   (user?.email === 'admin@edubridge.com' || doc.createdBy === user?.email)
 );
       setMyCourses(courses);
+      const quizzes = allDocs.filter(doc => 
+  doc.type === 'quiz' &&
+  courses.some(c => c._id === doc.lessonId)
+);
+setMyQuizzes(quizzes);
 
       // 2. Get all students who have registered
    const lecturerCourseIds = allDocs
@@ -141,7 +148,7 @@ const students = allDocs.filter(doc =>
         updatedAt: new Date().toISOString(),
         _attachments: attachmentObj || existingDoc._attachments
       });
-      alert("✅ Module Updated!");
+      showToast('Module updated successfully!', 'success');
     } else {
       await localDB.put({
         _id: `lesson_${Date.now()}`,
@@ -152,7 +159,7 @@ const students = allDocs.filter(doc =>
         createdBy: user?.email,
         _attachments: attachmentObj
       });
-      alert("✅ Module Published!");
+     showToast('Module published!', 'success');
     }
 
     // Reset level along with other fields
@@ -160,7 +167,7 @@ const students = allDocs.filter(doc =>
     setSelectedFile(null);
     setTitle(''); setCode(''); setCredits(''); setContent(''); setLevel('400'); 
   } catch (err) {
-    alert("❌ Error: " + err.message);
+   showToast('Error: ' + err.message, 'error');
   }
 };
 
@@ -232,13 +239,29 @@ const students = allDocs.filter(doc =>
       <button
         onClick={async () => {
           if (!lecturerName || !lecturerEmail || !lecturerPassword) {
-            alert("Please fill in all fields.");
-            return;
+           showToast('Please fill in all fields.', 'warning'); 
+           return;
           }
           if (lecturerPassword.length < 8 || !/\d/.test(lecturerPassword)) {
-            alert("Password must be 8+ characters and include a number.");
-            return;
+            showToast('Password must be 8+ characters and include a number.', 'warning');
+             return;
           }
+          // Email validation
+const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+if (!emailRegex.test(lecturerEmail)) {
+ showToast('Please enter a valid email address.', 'warning');
+  return;
+}
+const blockedDomains = [
+  'test.com', 'fake.com', 'asdf.com', 'mailinator.com',
+  'guerrillamail.com', 'tempmail.com', 'throwaway.com',
+  'yopmail.com', 'trashmail.com', 'maildrop.cc'
+];
+const emailDomain = lecturerEmail.split('@')[1]?.toLowerCase();
+if (blockedDomains.includes(emailDomain)) {
+  showToast('Please use a real email address.', 'warning');
+   return;
+}
           try {
             // Check if email already exists
             const allDocs = await localDB.allDocs({ include_docs: true });
@@ -247,8 +270,8 @@ const students = allDocs.filter(doc =>
               r.doc.email?.toLowerCase() === lecturerEmail.toLowerCase()
             );
             if (exists) {
-              alert("A user with this email already exists.");
-              return;
+             showToast('A user with this email already exists.', 'error'); 
+             return;
             }
             const bcrypt = await import('bcryptjs');
             const hashedPassword = await bcrypt.hash(lecturerPassword, 10);
@@ -261,14 +284,14 @@ const students = allDocs.filter(doc =>
               role: 'lecturer',
               createdAt: new Date().toISOString()
             });
-            alert(`✅ Lecturer account created for ${lecturerName}.\nEmail: ${lecturerEmail}\nPassword: ${lecturerPassword}\n\nShare these credentials with the lecturer.`);
+           showToast('Lecturer account created for ' + lecturerName + '.', 'success');
             setLecturerName('');
             setLecturerEmail('');
             setLecturerPassword('');
             setShowCreateLecturer(false);
           } catch (err) {
-            alert("❌ Error: " + err.message);
-          }
+          showToast('Error: ' + err.message, 'error');
+        }
         }}
         style={{ 
           width: '100%', padding: '15px', border: 'none', 
@@ -279,10 +302,13 @@ const students = allDocs.filter(doc =>
         }}
       >
         CREATE LECTURER ACCOUNT
-      </button>
+</button>
+
+      
     </div>
   )}
 </div>}
+
         {/* SECTION 1: ANALYTICS */}
         <h2 style={{ borderBottom: '2px solid rgba(0,255,47,0.3)', paddingBottom: '10px', color: '#111', fontSize: '1rem', letterSpacing: '1.5px', fontWeight: '900' }}>STUDENT ENGAGEMENT</h2>
         <div style={{ 
@@ -320,22 +346,47 @@ const students = allDocs.filter(doc =>
         {stat.email}
       </div>
 
-      {/* COMPLETION COUNT */}
-      <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '0.62rem', fontWeight: '700', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase' }}>Modules Completed</span>
-        <span style={{ 
-          marginLeft: 'auto',
-          color: '#00ff2f', 
-          backgroundColor: '#0a0a0a', 
-          padding: '4px 12px',
-          borderRadius: '20px',
-          fontSize: '0.85rem',
-          fontWeight: '900',
-          letterSpacing: '1px'
-        }}>
-          {stat.completed}
-        </span>
-      </div>
+  {/* COMPLETION COUNT */}
+<div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+  <span style={{ fontSize: '0.62rem', fontWeight: '700', color: '#aaa', letterSpacing: '1px', textTransform: 'uppercase' }}>Modules Completed</span>
+  <span style={{ 
+    marginLeft: 'auto',
+    color: '#00ff2f', 
+    backgroundColor: '#0a0a0a', 
+    padding: '4px 12px',
+    borderRadius: '20px',
+    fontSize: '0.85rem',
+    fontWeight: '900',
+    letterSpacing: '1px'
+  }}>
+    {stat.completed}
+  </span>
+</div>
+
+{/* VIEW QUIZ RESULTS BUTTON */}
+<button
+  onClick={async () => {
+    const allDocs = await localDB.allDocs({ include_docs: true });
+    const results = allDocs.rows
+      .map(r => r.doc)
+      .filter(d => d.type === 'quiz_result' && d.userId === stat.email);
+    if (results.length === 0) {
+     showToast(stat.id + ' has not taken any quizzes yet.', 'info');
+      return;
+    }
+  setQuizResultsModal({ name: stat.id, results });
+  }}
+  style={{ 
+    marginTop: '10px', width: '100%',
+    padding: '8px', background: '#f5f5f5',
+    color: '#333', border: '1px solid #e0e0e0',
+    borderRadius: '8px', fontFamily: 'monospace',
+    fontWeight: '700', cursor: 'pointer',
+    fontSize: '0.7rem', letterSpacing: '0.5px'
+  }}
+>
+  📊 VIEW QUIZ RESULTS
+</button>
     </div>
   ))
 )}
@@ -373,7 +424,12 @@ const students = allDocs.filter(doc =>
         </div>
           <div style={{ marginBottom: '15px' }}>
             <label style={{ color: '#fff', fontSize: '0.7rem', display: 'block', marginBottom: '5px' }}>ATTACH RESOURCE (PDF/IMG):</label>
-            <input type="file" onChange={(e) => setSelectedFile(e.target.files[0])} style={inputStyle} />
+          <input 
+     type="file" 
+  key={editingId || 'new'}
+  onChange={(e) => setSelectedFile(e.target.files[0])} 
+  style={inputStyle} 
+/>
           </div>
           <textarea placeholder="CONTENT" value={content} onChange={(e) => setContent(e.target.value)} required style={{ ...inputStyle, minHeight: '100px', marginBottom: '15px' }} />
           <button type="submit" style={{ width: '100%', padding: '15px', border: 'none', borderRadius: '10px', fontWeight: '900', cursor: 'pointer', fontFamily: 'monospace', letterSpacing: '1px', backgroundColor: editingId ? '#fff' : '#00ff2f', color: '#000', marginTop: '8px', boxShadow: '0 4px 16px rgba(0,255,47,0.2)' }}>
@@ -427,10 +483,10 @@ await localDB.put({ ...userDoc, resetApproved: true });
     const reqDoc = await localDB.get(req._id);
     await localDB.put({ ...reqDoc, status: 'approved', approvedAt: new Date().toISOString() });
 
-    alert(`✅ Reset approved for ${req.email}\n\nThe student will be prompted to set a new password on their next login.`);
-  } catch (err) {
-    alert('❌ Error: ' + err.message);
-  }
+    showToast('Reset approved for ' + req.email, 'success');
+   } catch (err) {
+  showToast('Error: ' + err.message, 'error');
+}
 }}
               >
                   APPROVE
@@ -438,12 +494,13 @@ await localDB.put({ ...userDoc, resetApproved: true });
             )}
             <button
               style={{ ...actionBtnStyle, backgroundColor: '#ff4444' }}
-              onClick={async () => {
-                if (window.confirm('Delete this request?')) {
-                  const reqDoc = await localDB.get(req._id);
-                  await localDB.remove(reqDoc);
-                }
-              }}
+ onClick={async () => {
+  const yes = await showConfirm('Delete this reset request?');
+  if (yes) {
+    const reqDoc = await localDB.get(req._id);
+    await localDB.remove(reqDoc);
+  }
+}} 
             >
               DEL
             </button>
@@ -469,12 +526,53 @@ await localDB.put({ ...userDoc, resetApproved: true });
                   setLevel(course.level || '400');
                   window.scrollTo({ top: 400, behavior: 'smooth' });
                 }} style={actionBtnStyle}>EDIT</button>
-                <button onClick={async () => { if(window.confirm("Delete?")) await localDB.remove(course); }} style={{ ...actionBtnStyle, backgroundColor: '#ff4444' }}>DEL</button>
-              </div>
-            </div>
+  <button
+  onClick={async () => {
+    const yes = await showConfirm('Delete this module? This cannot be undone.');
+    if (yes) await localDB.remove(course);
+  }}
+  style={{ ...actionBtnStyle, backgroundColor: '#ff4444' }}
+>
+  DEL
+</button>
+</div>
+</div>
             
-          ))}
+ ))}
+</div>
+  {/* SECTION: MY QUIZZES */}
+{myQuizzes.length > 0 && (
+  <div style={{ marginTop: '40px' }}>
+    <h2 style={{ borderBottom: '2px solid rgba(0,255,47,0.3)', paddingBottom: '10px', color: '#111', fontSize: '1rem', letterSpacing: '1.5px', fontWeight: '900', marginBottom: '20px' }}>
+      🧪 MY QUIZZES
+    </h2>
+    {myQuizzes.map(quiz => {
+      const module = myCourses.find(c => c._id === quiz.lessonId);
+      return (
+        <div key={quiz._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', border: '1px solid rgba(0,0,0,0.08)', marginBottom: '10px', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+          <div>
+            <strong style={{ color: '#000' }}>{module?.title || 'Unknown Module'}</strong>
+            <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '4px' }}>
+              {quiz.questions?.length || 0} questions • Pass mark: {quiz.passmark}%
+            </div>
+          </div>
+          <button
+  onClick={async () => {
+  const yes = await showConfirm('Delete this quiz?');
+  if (yes) {
+    const doc = await localDB.get(quiz._id);
+    await localDB.remove(doc);
+  }
+}}
+            style={{ ...actionBtnStyle, backgroundColor: '#ff4444' }}
+          >
+            DEL
+          </button>
         </div>
+      );
+    })}
+  </div>
+)}
       </div>
        {showQuizBuilder && (
         <QuizBuilder
@@ -482,6 +580,78 @@ await localDB.put({ ...userDoc, resetApproved: true });
           onClose={() => setShowQuizBuilder(false)}
         />
       )}
+      {quizResultsModal && (
+  <div style={{
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+    backdropFilter: 'blur(4px)', zIndex: 99999,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '20px',
+  }} onClick={e => { if (e.target === e.currentTarget) setQuizResultsModal(null); }}>
+    <div style={{
+      background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '520px',
+      maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+      boxShadow: '0 24px 64px rgba(0,0,0,0.3)', fontFamily: 'monospace', overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0a0a0a, #1a1a1a)',
+        padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <div>
+          <div style={{ color: '#00ff2f', fontWeight: '900', fontSize: '0.95rem' }}>📊 QUIZ RESULTS</div>
+          <div style={{ color: '#555', fontSize: '0.65rem', marginTop: '2px' }}>
+            {quizResultsModal.name.toUpperCase()}
+          </div>
+        </div>
+        <button onClick={() => setQuizResultsModal(null)} style={{
+          background: '#ff4444', color: '#fff', border: 'none',
+          borderRadius: '8px', padding: '6px 12px', cursor: 'pointer',
+          fontFamily: 'monospace', fontWeight: '700',
+        }}>✕</button>
+      </div>
+
+      {/* Results list */}
+      <div style={{ overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {quizResultsModal.results.map((r, i) => (
+          <div key={i} style={{
+            border: `1px solid ${r.passed ? 'rgba(0,255,47,0.25)' : 'rgba(255,68,68,0.25)'}`,
+            borderLeft: `4px solid ${r.passed ? '#00ff2f' : '#ff4444'}`,
+            borderRadius: '10px', padding: '14px 16px',
+            background: r.passed ? 'rgba(0,255,47,0.04)' : 'rgba(255,68,68,0.04)',
+          }}>
+            <div style={{ fontWeight: '900', fontSize: '0.85rem', color: '#111', marginBottom: '8px' }}>
+              📘 {r.lessonTitle || r.lessonId}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: '0.7rem', fontWeight: '700', padding: '3px 10px', borderRadius: '20px',
+                background: r.passed ? '#00ff2f' : '#ff4444',
+                color: r.passed ? '#000' : '#fff',
+              }}>
+                {r.passed ? '✅ PASSED' : '❌ FAILED'}
+              </span>
+              <span style={{
+                fontSize: '0.7rem', padding: '3px 10px', borderRadius: '20px',
+                background: '#f5f5f5', color: '#555', border: '1px solid #e0e0e0',
+              }}>
+                Score: {r.score}%
+              </span>
+              <span style={{
+                fontSize: '0.7rem', padding: '3px 10px', borderRadius: '20px',
+                background: '#f5f5f5', color: '#555', border: '1px solid #e0e0e0',
+              }}>
+                {r.correct}/{r.total} correct
+              </span>
+            </div>
+            <div style={{ fontSize: '0.65rem', color: '#aaa', marginTop: '8px' }}>
+              {new Date(r.completedAt).toLocaleString()}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };

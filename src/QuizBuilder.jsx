@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import localDB from './db';
+import { useToast } from './Toast';
 
 const QuizBuilder = ({ courses, onClose }) => {
+  const { showToast } = useToast();
   const [selectedLesson, setSelectedLesson] = useState('');
   const [passmark, setPassmark] = useState(70);
   const [questions, setQuestions] = useState([
@@ -36,10 +38,22 @@ const QuizBuilder = ({ courses, onClose }) => {
   };
 
   const handleSave = async () => {
-    if (!selectedLesson) { alert('Please select a module.'); return; }
+    if (!selectedLesson) { showToast('Please select a module.', 'warning'); return; }
+    if (questions.length === 0) {
+ showToast('Please add at least one question.', 'warning'); return;
+
+}
+
+if (questions.some(q => !q.question.trim())) {
+ showToast('Please fill in all question texts.', 'warning'); return;
+ 
+}
+
+if (questions.some(q => q.options.some(o => !o.trim()))) {
+showToast('Please fill in all answer options.', 'warning');return;
+}
     if (questions.some(q => !q.question || q.options.some(o => !o))) {
-      alert('Please fill in all questions and options.');
-      return;
+     showToast('Please fill in all questions and options.', 'warning'); return;
     }
     setSaving(true);
     try {
@@ -55,11 +69,11 @@ const QuizBuilder = ({ courses, onClose }) => {
         questions,
         createdAt: new Date().toISOString(),
       });
-      alert('✅ Quiz saved successfully!');
+     showToast('Quiz saved successfully!', 'success');
       onClose();
     } catch (err) {
-      alert('❌ Error saving quiz: ' + err.message);
-    }
+    showToast('Error saving quiz: ' + err.message, 'error');
+   }
     setSaving(false);
   };
 
