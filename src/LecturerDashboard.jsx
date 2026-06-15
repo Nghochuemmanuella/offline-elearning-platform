@@ -342,9 +342,9 @@ if (blockedDomains.includes(emailDomain)) {
       
       {/* STUDENT LEVEL & EMAIL */}
       <div style={{ marginTop: '8px', fontSize: '0.68rem', color: '#777', lineHeight: 1.5 }}>
-        <span style={{ fontWeight: '700', color: '#00aa1f', background: 'rgba(0,255,47,0.1)', padding: '2px 8px', borderRadius: '20px', marginRight: '6px' }}>LVL {stat.level}</span>
-        {stat.email}
-      </div>
+  <span style={{ fontWeight: '700', color: '#00aa1f', background: 'rgba(0,255,47,0.1)', padding: '2px 8px', borderRadius: '20px', marginRight: '6px' }}>LVL {stat.level}</span>
+  <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', marginTop: '4px' }}>{stat.email}</span>
+</div>
 
   {/* COMPLETION COUNT */}
 <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
